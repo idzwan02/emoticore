@@ -1,7 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Add this package for date formatting
 
-class RegisterPage extends StatelessWidget {
+// 1. Convert to StatefulWidget
+class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
+
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  // 2. Create a TextEditingController
+  final TextEditingController _dateController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    _dateController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,13 +47,12 @@ class RegisterPage extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.only(
                     topRight: Radius.circular(100),
-                    topLeft: Radius.circular(0),
                   ),
                 ),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start, // Align text to the left
                     children: [
                       const Text(
                         "Create new",
@@ -148,6 +164,7 @@ class RegisterPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       TextField(
+                        controller: _dateController, // Assign the controller
                         readOnly: true,
                         decoration: InputDecoration(
                           hintText: "Select your date of birth",
@@ -167,8 +184,12 @@ class RegisterPage extends StatelessWidget {
                             firstDate: DateTime(1950),
                             lastDate: DateTime.now(),
                           );
+                          // 3. Update the controller's text if a date is picked
                           if (pickedDate != null) {
-                            // you can handle selected date here
+                            String formattedDate = DateFormat('dd/MM/yyyy').format(pickedDate);
+                            setState(() {
+                              _dateController.text = formattedDate;
+                            });
                           }
                         },
                       ),
