@@ -1,3 +1,6 @@
+// In: lib/forgot_password_page.dart
+
+import 'package:firebase_auth/firebase_auth.dart'; // <-- 1. Import
 import 'package:flutter/material.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -10,6 +13,37 @@ class ForgotPasswordPage extends StatefulWidget {
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController _emailController = TextEditingController();
 
+  // 2. Create the reset function
+  Future<void> _sendResetLink() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
+
+      Navigator.pop(context); // Dismiss loading circle
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Password reset link sent to ${_emailController.text}"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      Navigator.pop(context); // Dismiss loading circle
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? "An error occurred"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color tealBlue = Color(0xFF5E8C95);
@@ -20,7 +54,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top back arrow
             Align(
               alignment: Alignment.topLeft,
               child: IconButton(
@@ -29,19 +62,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Logo area (optional)
             Container(
               height: 80,
               alignment: Alignment.center,
-              child: const Icon(
-                Icons.lock_reset_rounded,
-                size: 60,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.lock_reset_rounded, size: 60, color: Colors.white),
             ),
-
-            // White curved container
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -53,47 +78,28 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   ),
                 ),
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 30, vertical: 60),
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 60),
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const SizedBox(height: 20),
-                        const Text(
-                          "Forgot Password",
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF202020),
-                          ),
+                        const Text("Forgot Password",
+                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF202020)),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          "Enter your email to reset your password.",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFFA0A0A0),
-                          ),
+                        const Text("Enter your email to reset your password.",
+                          style: TextStyle(fontSize: 14, color: Color(0xFFA0A0A0)),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 50),
-
-                        // Email label
                         const Align(
                           alignment: Alignment.centerLeft,
-                          child: Text(
-                            "EMAIL",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFA0A0A0),
-                              letterSpacing: 1.5,
-                            ),
+                          child: Text("EMAIL",
+                            style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
                           ),
                         ),
                         const SizedBox(height: 10),
-
-                        // Email field
                         TextField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
@@ -108,8 +114,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                           ),
                         ),
                         const SizedBox(height: 40),
-
-                        // Send reset link button
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: tealBlue,
@@ -118,21 +122,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  "Reset link sent to ${_emailController.text}",
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            "Send Reset Link",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
+                          onPressed: _sendResetLink, // <-- 3. Call reset function
+                          child: const Text("Send Reset Link",
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                         ),
                       ],

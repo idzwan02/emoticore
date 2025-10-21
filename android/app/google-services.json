@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "347670359263",
+    "project_id": "emoticore",
+    "storage_bucket": "emoticore.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:347670359263:android:f01117374ccbb21bcb0d6a",
+        "android_client_info": {
+          "package_name": "com.example.emoticore"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlrfxe4YemuJ7Qx2hIinZhPRYhOqewAp8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
