@@ -125,8 +125,6 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     const Color tealBlue = Color(0xFF5E8C95);
-    const Color lightGray = Color(0xFFD9D6D6);
-
     return Scaffold(
       backgroundColor: tealBlue,
       body: SafeArea(

@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- 1. Import Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_gate.dart';
+import 'activities_page.dart';
 
 class EmoticoreMainPage extends StatefulWidget {
   const EmoticoreMainPage({super.key});
@@ -15,59 +16,87 @@ class EmoticoreMainPage extends StatefulWidget {
 
 class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   int _selectedIndex = 0;
+  String _userName = "Loading..."; // State variable for the user's name
 
-  // --- 2. Add state variable for the user's name ---
-  String _userName = "Loading..."; // Default text while loading
-
-  // --- Define your app's colors based on the storyboard ---
-  static const Color appPrimaryColor = Color(0xFF5A9E9E); // Teal-ish blue
-  static const Color appBackgroundColor = Color(0xFFD2E9E9); // Light mint/teal
-  static const Color statNumberColor = Color(0xFF4A69FF); // Blue for numbers
+  // --- Define your app's colors ---
+  static const Color appPrimaryColor = Color(0xFF5A9E9E);
+  static const Color appBackgroundColor = Color(0xFFD2E9E9);
+  static const Color statNumberColor = Color(0xFF4A69FF);
   static const Color goldBadgeColor = Color(0xFFD4AF37);
   static const Color redBadgeColor = Color(0xFFC70039);
-  // Chart colors for D, A, S
-  static const Color depressionBarColor = Color(0xFFEF5350); // Red
-  static const Color anxietyBarColor = Color(0xFFFFCA28); // Yellow
-  static const Color stressBarColor = Color(0xFF26C6DA); // Cyan
+  static const Color depressionBarColor = Color(0xFFEF5350);
+  static const Color anxietyBarColor = Color(0xFFFFCA28);
+  static const Color stressBarColor = Color(0xFF26C6DA);
 
-  // --- 3. Add initState to call the fetch function ---
+  // Note: _pages list is defined inside the build method now
+
   @override
   void initState() {
     super.initState();
-    _fetchUserName();
+    _fetchUserName(); // Fetch name when the widget initializes
   }
 
-  // --- 4. Add the function to fetch data from Firestore ---
+  // --- Cleaned _fetchUserName ---
   Future<void> _fetchUserName() async {
+    // Basic check if widget is still mounted
+    if (!mounted) return;
+
     try {
-      // Get the current user from Firebase Auth
       User? user = FirebaseAuth.instance.currentUser;
 
       if (user != null) {
-        // Get the user's document from the "users" collection
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
 
-        // Check if the document exists and has data
         if (userDoc.exists) {
-          Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
-          
-          // Update the state with the user's name
-          setState(() {
-            _userName = data['name'] ?? 'User'; // Use 'User' as a fallback
-          });
+          Map<String, dynamic>? data = userDoc.data() as Map<String, dynamic>?;
+
+          if (data != null && data.containsKey('name')) {
+             final fetchedName = data['name'];
+             if (mounted) {
+               setState(() {
+                 _userName = fetchedName ?? 'User'; // Use default if name is null
+               });
+             }
+          } else {
+             // Fallback using Auth display name if Firestore name is missing
+             final authDisplayName = user.displayName;
+             if (mounted) {
+               setState(() {
+                 _userName = authDisplayName ?? 'User';
+               });
+             }
+          }
+        } else {
+           // Fallback using Auth display name if Firestore doc doesn't exist
+           final authDisplayName = user.displayName;
+           if (mounted) {
+             setState(() {
+               _userName = authDisplayName ?? 'User';
+             });
+           }
         }
+      } else {
+         // Handle case where no user is logged in
+         if (mounted) {
+           setState(() {
+             _userName = "User"; // Or redirect to login?
+           });
+         }
       }
     } catch (e) {
-      // If there's an error, just set a default name
-      setState(() {
-        _userName = "User";
-      });
+      // Handle potential errors (e.g., network issues)
+      print("Error fetching user name: $e"); // Keep one error log just in case
+      if (mounted) {
+        setState(() {
+          _userName = "User"; // Set a default on error
+        });
+      }
     }
   }
-  // --- End of new functions ---
+  // --- END of cleaned _fetchUserName ---
 
 
   Future<void> _signOut() async {
@@ -91,31 +120,73 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Define _pages INSIDE the build method
+    final List<Widget> pages = [
+      // Page 0: Home Page Content
+      Scaffold(
+         backgroundColor: appBackgroundColor,
+         body: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                _buildSectionTitle("Your Badges"),
+                _buildBadgesSection(),
+                _buildSectionTitle("Your Statistics"),
+                _buildStatisticsSection(),
+                const SizedBox(height: 20),
+                _buildStatsCardsRow(),
+                _buildSectionTitle("Article"),
+                _buildArticleSection(),
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+      ),
+
+      // Page 1: Activities Page
+      const ActivitiesPage(),
+
+      // Page 2: Profile Page Content
+       Scaffold(
+         backgroundColor: appBackgroundColor,
+         appBar: AppBar(
+             backgroundColor: appPrimaryColor,
+             title: const Text('Profile', style: TextStyle(color: Colors.white)),
+             automaticallyImplyLeading: false,
+             actions: [
+               IconButton(
+                 icon: const Icon(Icons.logout, color: Colors.white),
+                 onPressed: _signOut,
+                 tooltip: "Logout",
+               ),
+             ],
+         ),
+         body: Center(
+           child: Text(
+             "Profile Page Content\nUser: $_userName",
+              textAlign: TextAlign.center,
+           ),
+         ),
+      ),
+    ];
+
+    // Removed the build method's print statement
+
     return Scaffold(
-      backgroundColor: appBackgroundColor,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(), // <-- This will now use the _userName variable
-            _buildSectionTitle("Your Badges"),
-            _buildBadgesSection(),
-            _buildSectionTitle("Your Statistics"),
-            _buildStatisticsSection(),
-            const SizedBox(height: 20),
-            _buildStatsCardsRow(),
-            _buildSectionTitle("Article"),
-            _buildArticleSection(),
-            const SizedBox(height: 30),
-          ],
-        ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: pages,
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  // --- 5. Update _buildHeader to use the _userName variable ---
+
+  // --- Helper Widgets ---
+
   Widget _buildHeader() {
+    // Removed the print statement
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
       width: double.infinity,
@@ -140,16 +211,14 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                   fontSize: 16,
                 ),
               ),
-              // --- THIS IS THE CHANGE ---
               Text(
-                _userName, // Use the state variable instead of "Dani Martinez"
+                _userName, // Directly uses the current state variable
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              // --- END OF CHANGE ---
             ],
           ),
           const Spacer(),
@@ -162,10 +231,14 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       ),
     );
   }
-  // --- End of header update ---
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
+  // ... (Keep _buildSectionTitle, _buildBadgesSection, _buildBadge,
+  //      _buildStatisticsSection, _buildBarChart, _buildStatsCardsRow,
+  //      _buildStatCard, _buildArticleSection, _buildBottomNav exactly as they were,
+  //      they didn't have print statements) ...
+
+   Widget _buildSectionTitle(String title) {
+     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
       child: Text(
         title,
@@ -179,14 +252,9 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   }
 
   Widget _buildBadgesSection() {
-    final List<Color> badgeColors = [
-      redBadgeColor,
-      redBadgeColor,
-      goldBadgeColor,
-      redBadgeColor,
-      redBadgeColor,
+     final List<Color> badgeColors = [
+      redBadgeColor, redBadgeColor, goldBadgeColor, redBadgeColor, redBadgeColor,
     ];
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       child: Card(
@@ -263,7 +331,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  Widget _buildBarChart() {
+   Widget _buildBarChart() {
     final double depressionScore = 14;
     final double anxietyScore = 8;
     final double stressScore = 18;
@@ -312,6 +380,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                         fontWeight: FontWeight.bold,
                         fontSize: 11,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 );
@@ -334,39 +403,9 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           border: Border.all(color: Colors.grey.shade400, width: 1),
         ),
         barGroups: [
-          BarChartGroupData(
-            x: 0,
-            barRods: [
-              BarChartRodData(
-                toY: depressionScore,
-                color: depressionBarColor,
-                width: 12,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ],
-          ),
-          BarChartGroupData(
-            x: 1,
-            barRods: [
-              BarChartRodData(
-                toY: anxietyScore,
-                color: anxietyBarColor,
-                width: 12,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ],
-          ),
-          BarChartGroupData(
-            x: 2,
-            barRods: [
-              BarChartRodData(
-                toY: stressScore,
-                color: stressBarColor,
-                width: 12,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ],
-          ),
+          BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: depressionScore, color: depressionBarColor, width: 12, borderRadius: BorderRadius.circular(4))]),
+          BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: anxietyScore, color: anxietyBarColor, width: 12, borderRadius: BorderRadius.circular(4))]),
+          BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: stressScore, color: stressBarColor, width: 12, borderRadius: BorderRadius.circular(4))]),
         ],
       ),
     );
@@ -377,48 +416,27 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       padding: const EdgeInsets.symmetric(horizontal: 15),
       child: Row(
         children: [
-          Expanded(
-            child: _buildStatCard("8", "Badges\nUnlocked"),
-          ),
+          Expanded(child: _buildStatCard("8", "Badges\nUnlocked")),
           const SizedBox(width: 10),
-          Expanded(
-            child: _buildStatCard("1000", "Total\nPoints"),
-          ),
+          Expanded(child: _buildStatCard("1000", "Total\nPoints")),
           const SizedBox(width: 10),
-          Expanded(
-            child: _buildStatCard("3", "Moodboard\nCreated"),
-          ),
+          Expanded(child: _buildStatCard("3", "Moodboard\nCreated")),
         ],
       ),
     );
   }
 
   Widget _buildStatCard(String value, String label) {
-    return Card(
+     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
         child: Column(
           children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: statNumberColor,
-              ),
-            ),
+            Text(value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: statNumberColor)),
             const SizedBox(height: 5),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black54,
-                height: 1.3,
-              ),
-            ),
+            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.3)),
           ],
         ),
       ),
@@ -426,7 +444,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   }
 
   Widget _buildArticleSection() {
-    return Padding(
+     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       child: Card(
         elevation: 2,
@@ -435,14 +453,12 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           width: double.infinity,
           height: 120,
           padding: const EdgeInsets.all(16),
-          child: const Text(
-            "Your article content goes here...",
-            style: TextStyle(color: Colors.grey),
-          ),
+          child: const Text("Your article content goes here...", style: TextStyle(color: Colors.grey)),
         ),
       ),
     );
   }
+
 
   Widget _buildBottomNav() {
     return BottomNavigationBar(
@@ -457,19 +473,11 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       unselectedItemColor: Colors.white.withOpacity(0.6),
       type: BottomNavigationBarType.fixed,
       items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: "Home",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt),
-          label: "Activities",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: "Profile",
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: "Activities"),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
       ],
     );
   }
-}
+
+} // End of _EmoticoreMainPageState class
