@@ -1,6 +1,4 @@
-// In: lib/forgot_password_page.dart
-
-import 'package:firebase_auth/firebase_auth.dart'; // <-- 1. Import
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -26,15 +24,17 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         email: _emailController.text.trim(),
       );
 
-      Navigator.pop(context); // Dismiss loading circle
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading circle
+      ScaffoldMessenger.of(context).showSnackBar( // Show SnackBar using the page's context
         SnackBar(
           content: Text("Password reset link sent to ${_emailController.text}"),
           backgroundColor: Colors.green,
         ),
       );
-    } on FirebaseAuthException catch (e) {
-      Navigator.pop(context); // Dismiss loading circle
+      // Pop the ForgotPasswordPage AFTER showing the SnackBar.
+      if (mounted) Navigator.pop(context);
+    } on FirebaseAuthException catch (e) { // Use the page's context for ScaffoldMessenger
+      if (mounted) Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading circle
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message ?? "An error occurred"),

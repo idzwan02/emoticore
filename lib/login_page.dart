@@ -1,10 +1,11 @@
 // In: lib/login_page.dart
 
-import 'package:firebase_auth/firebase_auth.dart'; // <-- 1. Import
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'register_page.dart';
-import 'forgot_password_page.dart';
-import 'dashboard_page.dart';
+import 'register_page.dart'; // Import Register Page
+import 'forgot_password_page.dart'; // Import Forgot Password Page
+import 'dashboard_page.dart'; // Import Dashboard Page
+import 'custom_page_route.dart'; // <-- Import the custom FadeRoute
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,7 +15,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // 2. Change 'name' controller to 'email'
+  // Controllers for email and password
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -25,44 +26,78 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // 3. Create the sign-in function
+  // --- Sign-in function with Dialog Context Fix and FadeRoute ---
   Future<void> _signIn() async {
-    // Show loading circle
+    BuildContext? dialogContext; // To hold the dialog's context
+
+    // Show loading circle and capture its context
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      builder: (BuildContext ctx) {
+        dialogContext = ctx; // Store the dialog context
+        return const Center(child: CircularProgressIndicator());
+      }
     );
 
     try {
-      // 4. Sign in with email and password
+      // Sign in with email and password
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // 5. Navigate to dashboard
-      if (mounted) {
-        Navigator.pop(context); // Dismiss loading circle
-        Navigator.pushReplacement(
+      // Optional short delay (can keep or remove based on testing)
+      // await Future.delayed(const Duration(milliseconds: 50));
+
+      // Dismiss loading circle using its specific context
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+         Navigator.pop(dialogContext!);
+      }
+
+      // Navigate to dashboard using FadeRoute AFTER ensuring dialog is popped
+      if (mounted) { // Check if widget is still in the tree
+        Navigator.pushReplacement( // Keep pushReplacement
           context,
-          MaterialPageRoute(builder: (context) => const EmoticoreMainPage()),
+          FadeRoute(page: const EmoticoreMainPage()), // USE FadeRoute
         );
       }
+
     } on FirebaseAuthException catch (e) {
-      Navigator.pop(context); // Dismiss loading circle
-      // Show error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? "Failed to sign in"),
-          backgroundColor: Colors.red,
-        ),
-      );
+       // Dismiss loading circle on error using its specific context
+       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+          Navigator.pop(dialogContext!);
+       }
+
+      // Show error (only if widget is still mounted)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? "Failed to sign in"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) { // Catch any other potential errors
+       // Dismiss loading circle on generic error using its specific context
+       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+          Navigator.pop(dialogContext!);
+       }
+       // Show generic error (only if widget is still mounted)
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text("An unexpected error occurred: ${e.toString()}"),
+             backgroundColor: Colors.red,
+           ),
+         );
+       }
     }
   }
+  // --- End of updated sign-in function ---
 
   @override
-  Widget build(BuildContext) {
+  Widget build(BuildContext context) {
     const Color tealBlue = Color(0xFF5E8C95);
     const Color lightGray = Color(0xFFD9D6D6);
 
@@ -72,6 +107,7 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           children: [
             const SizedBox(height: 40),
+            // Logo Section
             Center(
               child: Column(
                 children: [
@@ -84,7 +120,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     child: Center(
                       child: Image.asset(
-                        'assets/brain_icon.png', // Make sure this asset exists
+                        'assets/brain_icon.png', // Ensure asset exists
                         height: 50,
                         width: 50,
                       ),
@@ -94,6 +130,7 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
+            // White curved container
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -119,13 +156,16 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 30),
 
-                        // --- 6. Changed from "NAME" to "EMAIL" ---
-                        const Text("EMAIL",
-                          style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
+                        // Email Field
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text("EMAIL",
+                            style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         TextField(
-                          controller: _emailController, // Attach email controller
+                          controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             hintText: "Enter your email",
@@ -138,11 +178,14 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        // --- End of change ---
 
-                        const Text("PASSWORD",
-                          style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
-                        ),
+                        // Password Field
+                         const Align(
+                           alignment: Alignment.centerLeft,
+                           child: Text("PASSWORD",
+                            style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
+                           ),
+                         ),
                         const SizedBox(height: 10),
                         TextField(
                           controller: _passwordController,
@@ -158,6 +201,8 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 30),
+
+                        // Login Button
                         Center(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
@@ -167,32 +212,37 @@ class _LoginPageState extends State<LoginPage> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            onPressed: _signIn, // <-- 7. Call sign-in function
+                            onPressed: _signIn,
                             child: const Text("Log in",
                               style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                         ),
                         const SizedBox(height: 20),
+
+                        // Links
                         Column(
                           children: [
                             TextButton(
                               onPressed: () {
+                                // --- Use FadeRoute for Forgot Password ---
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (context) => const ForgotPasswordPage()),
+                                  FadeRoute(page: const ForgotPasswordPage()), // USE FadeRoute
                                 );
+                                // --- End FadeRoute ---
                               },
                               child: const Text("Forgot Password?",
                                   style: TextStyle(color: Color(0xFFA0A0A0))),
                             ),
                             TextButton(
                               onPressed: () {
+                                // --- Use FadeRoute for Sign Up ---
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const RegisterPage()),
+                                  FadeRoute(page: const RegisterPage()), // USE FadeRoute
                                 );
+                                // --- End FadeRoute ---
                               },
                               child: const Text("Sign up",
                                   style: TextStyle(color: Color(0xFFA0A0A0))),

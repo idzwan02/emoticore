@@ -1,7 +1,4 @@
-// In: lib/main.dart
-
 import 'package:flutter/material.dart';
-// Remove the login_page.dart import
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'auth_gate.dart'; // <-- 1. Import your new AuthGate
