@@ -67,6 +67,8 @@ class _Dass21PageState extends State<Dass21Page> {
   Widget build(BuildContext context) {
     bool isLastPage = _currentPage == 2;
     bool currentPageAnswered = _checkIfCurrentPageAnswered();
+    // --- ADDED: Calculate progress ---
+    double progress = _answers.isEmpty ? 0.0 : _answers.length / _questions.length;
 
     return Scaffold(
       backgroundColor: appBackgroundColor,
@@ -82,13 +84,30 @@ class _Dass21PageState extends State<Dass21Page> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
              Padding(
-               padding: const EdgeInsets.only(bottom: 16.0), // More space below page indicator
-               child: Text(
-                 'Page ${_currentPage + 1} of 3',
-                 textAlign: TextAlign.center,
-                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey.shade700),
+                // --- MODIFIED: Reduced bottom padding ---
+                padding: const EdgeInsets.only(bottom: 8.0), 
+                child: Text(
+                  'Page ${_currentPage + 1} of 3',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey.shade700),
+                ),
+              ),
+
+             // --- ADDED: Progress Bar ---
+             Padding(
+               padding: const EdgeInsets.only(bottom: 16.0, left: 4.0, right: 4.0),
+               child: ClipRRect( // To make the progress bar rounded
+                 borderRadius: BorderRadius.circular(8.0),
+                 child: LinearProgressIndicator(
+                   value: progress, // This updates on setState
+                   minHeight: 10.0, // Make it thicker
+                   backgroundColor: unselectedOptionBorderColor.withOpacity(0.5), // A subtle background
+                   valueColor: const AlwaysStoppedAnimation<Color>(appPrimaryColor), // Use theme color
+                 ),
                ),
              ),
+             // --- END: Progress Bar ---
+
             Expanded(
               child: PageView(
                 controller: _pageController,
@@ -142,8 +161,8 @@ class _Dass21PageState extends State<Dass21Page> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (pageIndex == 0) ...[
-                 const Text( "Please read each statement and select the option (0, 1, 2, or 3) which indicates how much the statement applied to you over the past week.", style: TextStyle(fontSize: 14.0, color: instructionTextColor, height: 1.4), textAlign: TextAlign.center, ),
-                 const SizedBox(height: 20.0), const Divider(), const SizedBox(height: 20.0),
+                const Text( "Please read each statement and select the option (0, 1, 2, or 3) which indicates how much the statement applied to you over the past week.", style: TextStyle(fontSize: 14.0, color: instructionTextColor, height: 1.4), textAlign: TextAlign.center, ),
+                const SizedBox(height: 20.0), const Divider(), const SizedBox(height: 20.0),
               ],
               for (int i = startIndex; i < endIndex; i++)
                 _buildSingleQuestionUI(questionIndex: i, startIndex: startIndex),
@@ -171,8 +190,6 @@ class _Dass21PageState extends State<Dass21Page> {
             duration: _animationDuration,
             transitionBuilder: (Widget child, Animation<double> animation) {
               return FadeTransition(opacity: animation, child: child); // Simple fade
-              // Or SlideTransition for a different effect
-              // return SlideTransition(position: Tween<Offset>(begin: Offset(0.1, 0), end: Offset.zero).animate(animation), child: child);
             },
             child: Text(
               _questions[questionIndex],
@@ -194,12 +211,12 @@ class _Dass21PageState extends State<Dass21Page> {
                 child: AnimatedContainer(
                   duration: _animationDuration,
                   decoration: BoxDecoration(
-                     color: currentlySelected ? selectedOptionFillColor : cardBackgroundColor,
-                     borderRadius: BorderRadius.circular(12),
-                     border: Border.all(
-                        color: currentlySelected ? selectedOptionBorderColor : unselectedOptionBorderColor,
-                        width: currentlySelected ? 2.0 : 1.5,
-                     )
+                       color: currentlySelected ? selectedOptionFillColor : cardBackgroundColor,
+                       borderRadius: BorderRadius.circular(12),
+                       border: Border.all(
+                         color: currentlySelected ? selectedOptionBorderColor : unselectedOptionBorderColor,
+                         width: currentlySelected ? 2.0 : 1.5,
+                       )
                   ),
                   child: Material( // Material for InkWell splash effect
                     color: Colors.transparent,
@@ -286,8 +303,8 @@ class _Dass21PageState extends State<Dass21Page> {
       try {
         await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).collection('dass21_results')
             .add({
-                'depressionScore': finalDepressionScore, 'anxietyScore': finalAnxietyScore, 'stressScore': finalStressScore,
-                'timestamp': FieldValue.serverTimestamp(), 'rawAnswers': answersWithStringKeys,
+               'depressionScore': finalDepressionScore, 'anxietyScore': finalAnxietyScore, 'stressScore': finalStressScore,
+               'timestamp': FieldValue.serverTimestamp(), 'rawAnswers': answersWithStringKeys,
             });
          if(Navigator.canPop(context)) Navigator.pop(context); // Pop loading
          ScaffoldMessenger.of(context).showSnackBar( const SnackBar(content: Text('Results saved!'), backgroundColor: Colors.green), );
