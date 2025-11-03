@@ -1,7 +1,9 @@
+// In: lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'auth_gate.dart'; // <-- 1. Import your new AuthGate
+import 'splash_screen.dart'; // <-- 1. Import your new SplashScreen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +20,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: AuthGate(), // <-- 2. Change home to AuthGate
+      home: SplashScreen(), // <-- 2. Change home to SplashScreen
     );
   }
 }

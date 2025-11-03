@@ -1,5 +1,8 @@
+// In: lib/auth_gate.dart
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart'; // <-- Import Lottie
 import 'login_page.dart';
 import 'dashboard_page.dart';
 
@@ -10,22 +13,27 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: StreamBuilder<User?>(
-        // Listen to the user's authentication state
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // If the snapshot is still loading, show a progress indicator
+          // If the snapshot is still loading
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            // --- UPDATED ---
+            return Center(
+              child: Lottie.asset(
+                'assets/animations/loading.json',
+                width: 150,
+                height: 150,
+              ),
+            );
+            // --- END UPDATE ---
           }
 
-          // If the user IS logged in (snapshot has data)
+          // If the user IS logged in
           if (snapshot.hasData) {
-            // Show the main dashboard
             return const EmoticoreMainPage();
           }
 
           // If the user is NOT logged in
-          // Show the login page
           return const LoginPage();
         },
       ),
