@@ -2,7 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'custom_page_route.dart'; // <-- Import the custom FadeRoute
-import 'dass21_page.dart';     // <-- Import the DASS-21 page
+import 'dass21_page.dart';
+import 'journaling_page.dart';
+import 'moodboard_page.dart'; // <-- Import the Journaling page
 
 class ActivitiesPage extends StatelessWidget {
   const ActivitiesPage({super.key});
@@ -23,7 +25,8 @@ class ActivitiesPage extends StatelessWidget {
     final double screenWidth = MediaQuery.of(context).size.width;
     final double totalHorizontalPadding = horizontalPadding * 2;
     final double totalSpacing = spacing * (crossAxisCount - 1);
-    final double availableWidth = screenWidth - totalHorizontalPadding - totalSpacing;
+    final double availableWidth =
+        screenWidth - totalHorizontalPadding - totalSpacing;
     final double itemWidth = availableWidth / crossAxisCount;
 
     return Scaffold(
@@ -40,7 +43,10 @@ class ActivitiesPage extends StatelessWidget {
       ),
       // Use Padding + Wrap for centering the last item
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 20.0),
+        padding: const EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 20.0,
+        ),
         child: Wrap(
           spacing: spacing, // Horizontal space between cards
           runSpacing: 15.0, // Vertical space between rows
@@ -54,9 +60,10 @@ class ActivitiesPage extends StatelessWidget {
                 icon: Icons.edit_note,
                 label: 'Journaling',
                 onTap: () {
-                  // TODO: Implement navigation to Journaling Page using FadeRoute
-                  print('Journaling tapped');
-                  // Example: Navigator.push(context, FadeRoute(page: JournalingPage()));
+                  Navigator.push(
+                    context,
+                    FadeRoute(page: const JournalingPage()), // Use FadeRoute
+                  );
                 },
               ),
             ),
@@ -67,10 +74,11 @@ class ActivitiesPage extends StatelessWidget {
                 icon: Icons.dashboard_customize,
                 label: 'Moodboard',
                 onTap: () {
-                  // TODO: Implement navigation to Moodboard Page using FadeRoute
-                  print('Moodboard tapped');
-                  // Example: Navigator.push(context, FadeRoute(page: MoodboardPage()));
-                },
+          Navigator.push(
+            context,
+            FadeRoute(page: const MoodboardPage()), // Use FadeRoute
+          );
+        },
               ),
             ),
             SizedBox(
@@ -80,9 +88,9 @@ class ActivitiesPage extends StatelessWidget {
                 icon: Icons.quiz,
                 label: 'Quizzes',
                 onTap: () {
-                   // TODO: Implement navigation to Quizzes Page using FadeRoute
+                  // TODO: Implement navigation to Quizzes Page using FadeRoute
                   print('Quizzes tapped');
-                   // Example: Navigator.push(context, FadeRoute(page: QuizzesPage()));
+                  // Example: Navigator.push(context, FadeRoute(page: QuizzesPage()));
                 },
               ),
             ),
@@ -132,7 +140,8 @@ class ActivitiesPage extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(15.0), // Match shape for ripple
-      child: AspectRatio( // Ensure card is square
+      child: AspectRatio(
+        // Ensure card is square
         aspectRatio: 1.0,
         child: Card(
           elevation: 2.0, // Softer shadow
@@ -143,7 +152,11 @@ class ActivitiesPage extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Icon(icon, size: 50.0, color: appPrimaryColor), // Use theme color for icon
+              Icon(
+                icon,
+                size: 50.0,
+                color: appPrimaryColor,
+              ), // Use theme color for icon
               const SizedBox(height: 12.0), // Adjusted spacing
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
