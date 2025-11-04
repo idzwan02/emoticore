@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // For loading images
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart'; // Make sure this is in pubspec.yaml
 import 'custom_page_route.dart';
-import 'edit_moodboard_page.dart'; // We will create this next
+import 'edit_moodboard_page.dart';
+import 'moodboard_detail_page.dart'; // <-- 1. Import the Detail Page
 
 class MoodboardPage extends StatefulWidget {
   const MoodboardPage({super.key});
@@ -19,6 +21,13 @@ class _MoodboardPageState extends State<MoodboardPage> {
   // Define theme colors
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
+  
+  final List<Color> _cardColors = [
+    const Color(0xFFFFF8E1), // Light Yellow
+    const Color(0xFFFCE4EC), // Light Pink
+    const Color(0xFFE3F2FD), // Light Blue
+    const Color(0xFFF3E5F5), // Light Purple
+  ];
 
   Stream<QuerySnapshot>? _moodboardStream;
   final User? _currentUser = FirebaseAuth.instance.currentUser;
@@ -35,75 +44,87 @@ class _MoodboardPageState extends State<MoodboardPage> {
         _moodboardStream = FirebaseFirestore.instance
             .collection('users')
             .doc(_currentUser!.uid)
-            .collection('moodboards') // New subcollection
+            .collection('moodboards')
             .orderBy('timestamp', descending: true)
             .snapshots();
       });
     }
   }
 
-  // Helper to navigate to the editor page
-  void _navigateToEditPage([QueryDocumentSnapshot? document]) {
+  // --- 2. UPDATED: Navigate to Detail Page ---
+  void _navigateToDetailPage(QueryDocumentSnapshot document) {
      Navigator.push(
       context,
       FadeRoute(
-        page: EditMoodboardPage(document: document),
+        page: MoodboardDetailPage(document: document), // Go to the detail page
       ),
     );
   }
 
-  // Helper to build each moodboard card in the grid
-  Widget _buildMoodboardCard(QueryDocumentSnapshot document) {
+  // --- 3. Card Widget (Shows a simple preview) ---
+  Widget _buildMoodboardCard(QueryDocumentSnapshot document, int index) {
     final data = document.data() as Map<String, dynamic>;
     final String title = data['title'] ?? 'No Title';
-    
-    // Get the list of images, default to an empty list
+    final String content = data['content'] ?? '';
     final List<dynamic> imageList = data['imageUrls'] ?? [];
     
     // Use the first image as the cover, or null if list is empty
     final String? coverImageUrl = imageList.isNotEmpty ? imageList[0] as String? : null;
+    
+    final cardColor = _cardColors[index % _cardColors.length];
 
     return InkWell(
-      onTap: () => _navigateToEditPage(document),
+      onTap: () => _navigateToDetailPage(document), // <-- 4. Use correct navigation
       borderRadius: BorderRadius.circular(12.0),
       child: Card(
-        elevation: 2.0,
+        elevation: 1.0,
+        color: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-        clipBehavior: Clip.antiAlias, // Clips the image to the card's shape
+        clipBehavior: Clip.antiAlias, // Important for clipping
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image Area
-            AspectRatio(
-              aspectRatio: 1.0, // Square aspect ratio
-              child: Container(
-                color: Colors.grey.shade200,
-                child: coverImageUrl != null
-                  ? CachedNetworkImage(
-                      imageUrl: coverImageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Center(
-                        child: Lottie.asset('assets/animations/loading.json', width: 60, height: 60),
-                      ),
-                      errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey, size: 40),
-                    )
-                  : const Center(
-                      child: Icon(Icons.photo_album_outlined, color: Colors.grey, size: 40),
-                    ), // Placeholder
-              ),
-            ),
-            // Title Area
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.black87,
+            // --- Show ONLY the cover image ---
+            if (coverImageUrl != null)
+              CachedNetworkImage(
+                imageUrl: coverImageUrl,
+                // Give images different heights based on index to create a staggered look
+                height: (index % 3 == 0) ? 200 : 150, 
+                width: double.infinity,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  height: (index % 3 == 0) ? 200 : 150,
+                  color: Colors.black.withOpacity(0.05)
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                errorWidget: (context, url, error) => Container(
+                  height: (index % 3 == 0) ? 200 : 150,
+                  child: const Icon(Icons.broken_image, color: Colors.grey)
+                ),
+              ),
+            // --- END ---
+            
+            // Text Content
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Colors.black87),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (content.isNotEmpty) ...[
+                    const SizedBox(height: 8.0),
+                    Text(
+                      content,
+                      style: TextStyle(color: Colors.grey.shade700, fontSize: 14, height: 1.4),
+                      maxLines: 3, // Only show a small snippet
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -111,9 +132,9 @@ class _MoodboardPageState extends State<MoodboardPage> {
       ),
     );
   }
-
-  // Helper for empty state
+  
   Widget _buildEmptyState() {
+     // (This function remains the same)
      return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -171,24 +192,28 @@ class _MoodboardPageState extends State<MoodboardPage> {
 
                 final entries = snapshot.data!.docs;
                 
-                // Use GridView.builder for a 2-column grid
-                return GridView.builder(
+                // --- 5. Use MasonryGridView for the staggered list page ---
+                return MasonryGridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 8.0,
+                  crossAxisSpacing: 8.0,
                   padding: const EdgeInsets.all(12.0),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,      // 2 columns
-                    mainAxisSpacing: 12.0,  // Space between rows
-                    crossAxisSpacing: 12.0, // Space between columns
-                    childAspectRatio: 0.75, // Adjust aspect ratio (height > width)
-                  ),
                   itemCount: entries.length,
                   itemBuilder: (context, index) {
-                    return _buildMoodboardCard(entries[index]);
+                    return _buildMoodboardCard(entries[index], index);
                   },
                 );
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToEditPage(), // Pass no document to create new
+        // --- 6. FAB goes to Edit Page ---
+        onPressed: () {
+          // Pass no document to create a new one
+          Navigator.push(
+            context,
+            FadeRoute(page: const EditMoodboardPage()), 
+          );
+        },
         backgroundColor: appPrimaryColor,
         foregroundColor: Colors.white,
         tooltip: 'New Moodboard',

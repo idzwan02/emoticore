@@ -17,7 +17,10 @@ class EditMoodboardPage extends StatefulWidget {
 
 class _EditMoodboardPageState extends State<EditMoodboardPage> {
   final TextEditingController _titleController = TextEditingController();
-  // We'll use a simple list of controllers for image URLs
+  // --- NEW: Add Content Controller ---
+  final TextEditingController _contentController = TextEditingController();
+  // --- END NEW ---
+  
   List<TextEditingController> _imageUrlControllers = [TextEditingController()];
   bool _isSaving = false;
   String? _documentId;
@@ -36,12 +39,19 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
       _documentId = widget.document!.id;
       _pageTitle = 'Edit Moodboard';
       
-      // Load existing image URLs
+      // --- NEW: Load content ---
+      _contentController.text = data['content'] ?? '';
+      // --- END NEW ---
+
       final List<dynamic> imageList = data['imageUrls'] ?? [];
       if (imageList.isNotEmpty) {
         _imageUrlControllers = imageList.map((url) {
           return TextEditingController(text: url as String? ?? '');
         }).toList();
+      }
+      // Ensure at least one controller exists
+      if (_imageUrlControllers.isEmpty) {
+         _imageUrlControllers.add(TextEditingController());
       }
     }
   }
@@ -49,6 +59,7 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
   @override
   void dispose() {
     _titleController.dispose();
+    _contentController.dispose(); // --- NEW: Dispose content ---
     for (var controller in _imageUrlControllers) {
       controller.dispose();
     }
@@ -71,26 +82,24 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
       return;
     }
 
-    // Convert controller text to a list of non-empty URLs
     List<String> imageUrls = _imageUrlControllers
         .map((controller) => controller.text.trim())
-        .where((url) => url.isNotEmpty) // Filter out empty fields
+        .where((url) => url.isNotEmpty)
         .toList();
 
     try {
       final data = {
         'title': _titleController.text,
+        'content': _contentController.text.trim(), // --- NEW: Save content ---
         'timestamp': FieldValue.serverTimestamp(),
         'userId': user.uid,
-        'imageUrls': imageUrls, // Save the list of URLs
+        'imageUrls': imageUrls,
       };
 
       if (_documentId == null) {
-        // New Moodboard
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('moodboards').add(data);
       } else {
-        // Existing Moodboard
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('moodboards').doc(_documentId).update(data);
       }
@@ -106,37 +115,13 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
-
-  void _addUrlField() {
-    setState(() {
-      _imageUrlControllers.add(TextEditingController());
-    });
-  }
-
-  void _removeUrlField(int index) {
-    setState(() {
-      _imageUrlControllers[index].dispose();
-      _imageUrlControllers.removeAt(index);
-    });
-  }
   
-  void _showLoadingDialog() {
-    showDialog(
-      context: context, barrierDismissible: false,
-      builder: (context) => Center(child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150)),
-    );
-  }
+  // (Keep _addUrlField, _removeUrlField, _showLoadingDialog, _showErrorDialog as they were)
+  void _addUrlField() { setState(() { _imageUrlControllers.add(TextEditingController()); }); }
+  void _removeUrlField(int index) { setState(() { _imageUrlControllers[index].dispose(); _imageUrlControllers.removeAt(index); }); }
+  void _showLoadingDialog() { showDialog( context: context, barrierDismissible: false, builder: (context) => Center(child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150)), ); }
+  void _showErrorDialog(String message) { if (!mounted) return; showDialog( context: context, builder: (context) => AlertDialog( title: const Text("Error"), content: Text(message), actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ], ), ); }
 
-  void _showErrorDialog(String message) {
-     if (!mounted) return;
-     showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Error"), content: Text(message),
-        actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,19 +160,39 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
                   controller: _titleController,
                   autofocus: _documentId == null,
                   decoration: const InputDecoration(
-                    labelText: 'Moodboard Title',
-                    hintText: 'e.g., "Summer Vibes"',
-                    border: OutlineInputBorder(),
+                    hintText: 'Moodboard Title',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 24, fontWeight: FontWeight.bold),
+                    border: InputBorder.none,
                   ),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                  maxLines: 1,
+                  textCapitalization: TextCapitalization.sentences,
                 ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 12),
+
+                // --- NEW: Content Field ---
+                TextField(
+                  controller: _contentController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add notes here...',
+                    hintStyle: TextStyle(color: Colors.grey, fontSize: 16),
+                    border: InputBorder.none,
+                  ),
+                  style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.5),
+                  maxLines: 8, // Give it some initial space
+                  minLines: 3,
+                  keyboardType: TextInputType.multiline,
+                ),
+                // --- END NEW ---
+
                 const SizedBox(height: 24),
                 const Text(
                   'Image URLs',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                // --- List of URL TextFields ---
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -208,7 +213,6 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
                               ),
                             ),
                           ),
-                          // Remove button (only if not the last one)
                           if (_imageUrlControllers.length > 1)
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
@@ -225,7 +229,6 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
                   label: const Text('Add another URL'),
                   onPressed: _addUrlField,
                 ),
-                // --- End URL List ---
               ],
             ),
           ),
