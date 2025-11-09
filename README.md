@@ -8,7 +8,7 @@ Emoticore is a mobile mental health (mHealth) application built with Flutter and
 
 | Login Page | Dashboard | Activities | DASS-21 Quiz | Profile |
 | :---: | :---: | :---: | :---: | :---: |
-| ![alt text](assets/readme/login.jpg) | `[Insert screenshot of dashboard_page.dart]` | `[Insert screenshot of activities_page.dart]` | `[Insert screenshot of dass21_page.dart]` | `[Insert screenshot of profile_page.dart]` |
+| ![alt text](assets/readme/login.jpg) | ![alt text](assets/readme/dashboard.jpg) | ![alt text](assets/readme/activities.jpg) | ![alt text](assets/readme/dass21.jpg) | ![alt text](assets/readme/profile.jpg) |
 
 ## ✨ Features
 
