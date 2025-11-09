@@ -1,17 +1,17 @@
 // In: lib/edit_journal_page.dart
 
-import 'dart:io'; // Import for File
+import 'dart:io'; // Import for File operations
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // Import Storage
+import 'package:firebase_storage/firebase_storage.dart'; // Import Firebase Storage
 import 'package:image_picker/image_picker.dart'; // Import Image Picker
 import 'package:lottie/lottie.dart';
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // For showing existing images
+import 'package:cached_network_image/cached_network_image.dart'; // For displaying existing images
 
 class EditJournalPage extends StatefulWidget {
-  final QueryDocumentSnapshot? document;
+  final QueryDocumentSnapshot? document; // Null if new entry
 
   const EditJournalPage({super.key, this.document});
 
@@ -29,9 +29,9 @@ class _EditJournalPageState extends State<EditJournalPage> {
   bool _isBookmarked = false;
 
   // --- NEW: State variables for image handling ---
-  File? _pickedImageFile; // Holds a new image selected from the device
+  File? _pickedImageFile; // Holds the new file selected from the device
   String? _existingImageUrl; // Holds the URL of an already-uploaded image
-  bool _imageWasRemoved = false; // Flag to detect image removal
+  bool _imageWasRemoved = false; // Flag if user removes an existing image
   final ImagePicker _picker = ImagePicker(); // Instance of image_picker
   // --- END NEW ---
 
@@ -51,7 +51,7 @@ class _EditJournalPageState extends State<EditJournalPage> {
       _isBookmarked = data['isBookmarked'] ?? false;
       
       // --- NEW: Load existing image URL ---
-      _existingImageUrl = data['imageUrl'];
+      _existingImageUrl = data['imageUrl']; // Assumes field is named 'imageUrl'
       // --- END NEW ---
     }
   }
@@ -68,14 +68,15 @@ class _EditJournalPageState extends State<EditJournalPage> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        maxWidth: 1024, // Resize for faster uploads
+        maxWidth: 1024, // Resize for faster uploads and less storage
         imageQuality: 85,
       );
 
       if (pickedFile != null) {
         setState(() {
           _pickedImageFile = File(pickedFile.path);
-          _imageWasRemoved = false; // A new image was picked
+          _imageWasRemoved = false; // A new image was picked, so don't remove
+          _existingImageUrl = null; // Clear existing image to show the new one
         });
       }
     } catch (e) {
@@ -141,9 +142,9 @@ class _EditJournalPageState extends State<EditJournalPage> {
         String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
         Reference storageRef = FirebaseStorage.instance
             .ref()
-            .child('journal_images')
-            .child(user.uid)
-            .child(fileName);
+            .child('journal_images') // Folder for all journal images
+            .child(user.uid) // Subfolder for this user
+            .child(fileName); // The file
 
         UploadTask uploadTask = storageRef.putFile(_pickedImageFile!);
         TaskSnapshot snapshot = await uploadTask;
@@ -153,7 +154,7 @@ class _EditJournalPageState extends State<EditJournalPage> {
       else if (_imageWasRemoved) {
         finalImageUrl = null;
         // Note: This doesn't delete the old image from Storage
-        // to keep it simple.
+        // to keep the code simple, but you could add that logic.
       }
       // --- END NEW ---
 
@@ -168,9 +169,11 @@ class _EditJournalPageState extends State<EditJournalPage> {
       };
 
       if (_documentId == null) {
+        // New Entry
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('journal_entries').add(entryData);
       } else {
+        // Existing Entry
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('journal_entries').doc(_documentId).update(entryData);
       }
@@ -188,9 +191,20 @@ class _EditJournalPageState extends State<EditJournalPage> {
   }
   
   // (Keep _deleteEntry, _showLoadingDialog, _showErrorDialog as they were)
-  Future<void> _deleteEntry() async { /* ... (no changes here) ... */ }
-  void _showLoadingDialog() { /* ... (no changes here) ... */ }
-  void _showErrorDialog(String message) { /* ... (no changes here) ... */ }
+  Future<void> _deleteEntry() async {
+     if (_documentId == null) return;
+     bool? deleteConfirmed = await showDialog<bool>( context: context, builder: (context) => AlertDialog( title: const Text('Delete Entry?'), content: const Text('Are you sure you want to delete this journal entry? This cannot be undone.'), actions: [ TextButton( onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'), ), TextButton( onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete'), ), ], ), );
+     if (deleteConfirmed != true) return;
+     setState(() => _isSaving = true); _showLoadingDialog();
+     User? user = FirebaseAuth.instance.currentUser; if (user == null) return;
+     try {
+       // TODO: Add logic here to delete the image from Firebase Storage if it exists
+       await FirebaseFirestore.instance .collection('users') .doc(user.uid) .collection('journal_entries') .doc(_documentId) .delete();
+       if (mounted) { Navigator.pop(context); Navigator.pop(context); }
+     } catch (e) { if (mounted) Navigator.pop(context); _showErrorDialog("Error deleting entry: ${e.toString()}"); } finally { if (mounted) setState(() => _isSaving = false); }
+  }
+  void _showLoadingDialog() { showDialog( context: context, barrierDismissible: false, builder: (context) => Center( child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150), ), ); }
+  void _showErrorDialog(String message) { if (!mounted) return; showDialog( context: context, builder: (context) => AlertDialog( title: const Text("Error"), content: Text(message), actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ], ), ); }
 
 
   @override
@@ -205,7 +219,6 @@ class _EditJournalPageState extends State<EditJournalPage> {
     return Scaffold(
       backgroundColor: appBackgroundColor,
       appBar: AppBar(
-        // (AppBar is the same as before)
          backgroundColor: appPrimaryColor,
         leading: IconButton( icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context), ),
         title: Text( _documentId == null ? 'New Entry' : 'Edit Entry', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), ),
@@ -299,6 +312,7 @@ class _EditJournalPageState extends State<EditJournalPage> {
           child: Container(
              width: double.infinity,
              height: 200, // Fixed height for the image preview
+             color: Colors.grey.shade200, // Background for image
              child: _pickedImageFile != null
                 ? Image.file( // Show the newly picked file
                     _pickedImageFile!,
@@ -307,8 +321,8 @@ class _EditJournalPageState extends State<EditJournalPage> {
                 : CachedNetworkImage( // Show the existing network image
                     imageUrl: _existingImageUrl!,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: Colors.grey.shade200, height: 200),
-                    errorWidget: (context, url, error) => const Icon(Icons.broken_image),
+                    placeholder: (context, url) => Center(child: Lottie.asset('assets/animations/loading.json', width: 60, height: 60)),
+                    errorWidget: (context, url, error) => const Icon(Icons.broken_image, color: Colors.grey),
                   ),
           ),
         ),

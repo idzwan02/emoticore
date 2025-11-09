@@ -2,7 +2,7 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart'; // <-- Import Lottie
+import 'package:lottie/lottie.dart';
 import 'register_page.dart';
 import 'forgot_password_page.dart';
 import 'dashboard_page.dart';
@@ -19,6 +19,10 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  // --- 1. Add state variable for password visibility ---
+  bool _isPasswordVisible = false;
+  // --- End ---
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -28,8 +32,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _signIn() async {
     BuildContext? dialogContext;
-
-    // --- UPDATED ---
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -42,9 +45,8 @@ class _LoginPageState extends State<LoginPage> {
             height: 150,
           ),
         );
-      },
+      }
     );
-    // --- END UPDATE ---
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -52,9 +54,8 @@ class _LoginPageState extends State<LoginPage> {
         password: _passwordController.text.trim(),
       );
 
-      // Dismiss loading dialog
       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
-        Navigator.pop(dialogContext!);
+         Navigator.pop(dialogContext!);
       }
 
       if (mounted) {
@@ -63,10 +64,11 @@ class _LoginPageState extends State<LoginPage> {
           FadeRoute(page: const EmoticoreMainPage()),
         );
       }
+
     } on FirebaseAuthException catch (e) {
-      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
-        Navigator.pop(dialogContext!);
-      }
+       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+          Navigator.pop(dialogContext!);
+       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -76,17 +78,17 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
-      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
-        Navigator.pop(dialogContext!);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("An unexpected error occurred: ${e.toString()}"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+          Navigator.pop(dialogContext!);
+       }
+       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(
+             content: Text("An unexpected error occurred: ${e.toString()}"),
+             backgroundColor: Colors.red,
+           ),
+         );
+       }
     }
   }
 
@@ -135,39 +137,22 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: SingleChildScrollView(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 30,
-                      vertical: 50,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 50),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Login",
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF202020),
-                          ),
+                        const Text("Login",
+                          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF202020)),
                         ),
                         const SizedBox(height: 5),
-                        const Text(
-                          "Sign in to continue.",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFFA0A0A0),
-                          ),
+                        const Text("Sign in to continue.",
+                          style: TextStyle(fontSize: 14, color: Color(0xFFA0A0A0)),
                         ),
                         const SizedBox(height: 30),
                         const Align(
                           alignment: Alignment.centerLeft,
-                          child: Text(
-                            "EMAIL",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFA0A0A0),
-                              letterSpacing: 1.5,
-                            ),
+                          child: Text("EMAIL",
+                            style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -185,21 +170,17 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "PASSWORD",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFA0A0A0),
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                        ),
+                         const Align(
+                           alignment: Alignment.centerLeft,
+                           child: Text("PASSWORD",
+                            style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
+                           ),
+                         ),
                         const SizedBox(height: 10),
+                        // --- 2. Update Password TextField ---
                         TextField(
                           controller: _passwordController,
-                          obscureText: true,
+                          obscureText: !_isPasswordVisible, // <-- Connect to state
                           decoration: InputDecoration(
                             hintText: "Enter your password",
                             filled: true,
@@ -208,8 +189,23 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(20),
                               borderSide: BorderSide.none,
                             ),
+                            // --- 3. Add the visibility toggle button ---
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.grey.shade600,
+                              ),
+                              onPressed: () {
+                                // Toggle the state
+                                setState(() {
+                                  _isPasswordVisible = !_isPasswordVisible;
+                                });
+                              },
+                            ),
+                            // --- End ---
                           ),
                         ),
+                        // --- End Update ---
                         const SizedBox(height: 30),
                         Center(
                           child: ElevatedButton(
@@ -221,12 +217,8 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                             onPressed: _signIn,
-                            child: const Text(
-                              "Log in",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                            child: const Text("Log in",
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                         ),
@@ -240,10 +232,8 @@ class _LoginPageState extends State<LoginPage> {
                                   FadeRoute(page: const ForgotPasswordPage()),
                                 );
                               },
-                              child: const Text(
-                                "Forgot Password?",
-                                style: TextStyle(color: Color(0xFFA0A0A0)),
-                              ),
+                              child: const Text("Forgot Password?",
+                                  style: TextStyle(color: Color(0xFFA0A0A0))),
                             ),
                             TextButton(
                               onPressed: () {
@@ -252,10 +242,8 @@ class _LoginPageState extends State<LoginPage> {
                                   FadeRoute(page: const RegisterPage()),
                                 );
                               },
-                              child: const Text(
-                                "Sign up",
-                                style: TextStyle(color: Color(0xFFA0A0A0)),
-                              ),
+                              child: const Text("Sign up",
+                                  style: TextStyle(color: Color(0xFFA0A0A0))),
                             ),
                           ],
                         ),
@@ -264,7 +252,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
-            ),
+            )
           ],
         ),
       ),

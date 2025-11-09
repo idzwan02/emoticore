@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // Import
+import 'package:cached_network_image/cached_network_image.dart'; // <-- Import
 import 'custom_page_route.dart';
 import 'edit_journal_page.dart';
 
@@ -172,14 +172,12 @@ class _JournalingPageState extends State<JournalingPage> with SingleTickerProvid
   // --- END UPDATED Card ---
   
   Widget _buildEmptyState() {
-     // (Keep this function as it was)
      return Center( child: Padding( padding: const EdgeInsets.all(24.0), child: Column( mainAxisAlignment: MainAxisAlignment.center, children: [ Icon(Icons.edit_note, size: 80, color: Colors.grey.shade500), const SizedBox(height: 16), const Text( 'No Entries Found', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold), ), const SizedBox(height: 8), Text( 'Tap the "+" button to write a journal entry, or check another tab.', style: TextStyle(fontSize: 16, color: Colors.grey.shade600), textAlign: TextAlign.center, ), ], ), ), );
   }
 
 
   @override
   Widget build(BuildContext context) {
-    // (Keep this function as it was)
     return Scaffold(
       backgroundColor: appBackgroundColor,
       appBar: AppBar(

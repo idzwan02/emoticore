@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lottie/lottie.dart'; // <-- Import Lottie
+import 'package:intl/intl.dart'; // For date formatting
+import 'package:shared_preferences/shared_preferences.dart'; // For local storage
+import 'package:lottie/lottie.dart'; // Import Lottie
+import 'package:cached_network_image/cached_network_image.dart'; // Import for header avatar
 import 'auth_gate.dart';
 import 'activities_page.dart';
 import 'custom_page_route.dart';
@@ -29,6 +30,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   Stream<QuerySnapshot>? _dassStream;
   String _currentMoodId = 'neutral';
 
+  // --- Maps for Mood Data ---
   final Map<String, String> _moodEmojis = {
     'happy': '😊',
     'excited': '😃',
@@ -36,6 +38,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     'anxious': '😟',
     'sad': '😔',
   };
+
   final Map<String, String> _moodTexts = {
     'happy': 'Happy',
     'excited': 'Excited',
@@ -43,7 +46,9 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     'anxious': 'Anxious',
     'sad': 'Sad',
   };
+  // --- End Mood Maps ---
 
+  // --- Color Definitions ---
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
   static const Color statNumberColor = Color(0xFF4A69FF);
@@ -52,41 +57,104 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   static const Color depressionBarColor = Color(0xFFEF5350);
   static const Color anxietyBarColor = Color(0xFFFFCA28);
   static const Color stressBarColor = Color(0xFF26C6DA);
+  // --- End Color Definitions ---
 
+  // --- Avatar Asset Map ---
+  // --- Avatar Asset Map ---
   final Map<String, String> _availableAvatarAssets = {
-    'default': 'assets/avatars/user.png',
-    'avatar1': 'assets/avatars/dog.png',
-    'avatar2': 'assets/avatars/dog (1).png',
-    'avatar3': 'assets/avatars/gorilla.png',
+    'default': 'assets/avatars/user.png', // Or 'default_avatar.png' if you have one
+    'astronaut (2)': 'assets/avatars/astronaut (2).png',
+    'astronaut': 'assets/avatars/astronaut.png',
+    'bear': 'assets/avatars/bear.png',
+    'boy': 'assets/avatars/boy.png',
+    'cat (2)': 'assets/avatars/cat (2).png',
+    'cat': 'assets/avatars/cat.png',
+    'chicken': 'assets/avatars/chicken.png',
+    'cow': 'assets/avatars/cow.png',
+    'dog (1)': 'assets/avatars/dog (1).png',
+    'dog (2)': 'assets/avatars/dog (2).png',
+    'dog': 'assets/avatars/dog.png',
+    'dragon': 'assets/avatars/dragon.png',
+    'eagle': 'assets/avatars/eagle.png',
+    'fox': 'assets/avatars/fox.png',
+    'gamer': 'assets/avatars/gamer.png',
+    'gorilla': 'assets/avatars/gorilla.png',
+    'hen': 'assets/avatars/hen.png',
+    'hippopotamus': 'assets/avatars/hippopotamus.png',
+    'human': 'assets/avatars/human.png',
+    'koala': 'assets/avatars/koala.png',
+    'lion': 'assets/avatars/lion.png',
+    'man (1)': 'assets/avatars/man (1).png',
+    'man (2)': 'assets/avatars/man (2).png',
+    'man (3)': 'assets/avatars/man (3).png',
+    'man (4)': 'assets/avatars/man (4).png',
+    'man (5)': 'assets/avatars/man (5).png',
+    'man (6)': 'assets/avatars/man (6).png',
+    'man (7)': 'assets/avatars/man (7).png',
+    'man (8)': 'assets/avatars/man (8).png',
+    'man (9)': 'assets/avatars/man (9).png',
+    'man (10)': 'assets/avatars/man (10).png',
+    'man (11)': 'assets/avatars/man (11).png',
+    'man (12)': 'assets/avatars/man (12).png',
+    'man (13)': 'assets/avatars/man (13).png',
+    'man': 'assets/avatars/man.png',
+    'meerkat': 'assets/avatars/meerkat.png',
+    'owl': 'assets/avatars/owl.png',
+    'panda': 'assets/avatars/panda.png',
+    'polar-bear': 'assets/avatars/polar-bear.png',
+    'profile (2)': 'assets/avatars/profile (2).png',
+    'profile': 'assets/avatars/profile.png',
+    'puffer-fish': 'assets/avatars/puffer-fish.png',
+    'rabbit': 'assets/avatars/rabbit.png',
+    'robot': 'assets/avatars/robot.png',
+    'shark': 'assets/avatars/shark.png',
+    'sloth': 'assets/avatars/sloth.png',
+    'user (1)': 'assets/avatars/user (1).png',
+    'user (2)': 'assets/avatars/user (2).png',
+    'user': 'assets/avatars/user.png',
+    'woman (1)': 'assets/avatars/woman (1).png',
+    'woman (2)': 'assets/avatars/woman (2).png',
+    'woman (3)': 'assets/avatars/woman (3).png',
+    'woman (4)': 'assets/avatars/woman (4).png',
+    'woman (5)': 'assets/avatars/woman (5).png',
+    'woman (6)': 'assets/avatars/woman (6).png',
+    'woman': 'assets/avatars/woman.png',
   };
+  // --- End Avatar Asset Map ---
+
+  // Stream for this user's document
+  Stream<DocumentSnapshot>? _userStream;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialData();
-    _initializeDassStream();
+    _loadInitialData(); // Fetches name and initial mood
+    _initializeStreams(); // Sets up DASS and User stream
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _triggerDailyMoodCheck();
     });
   }
 
-  // --- Mood Check Functions (Keep as they were) ---
+  // --- Daily Mood Check Functions ---
   Future<void> _triggerDailyMoodCheck() async {
     await Future.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
+
     final prefs = await SharedPreferences.getInstance();
     final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final String? lastCheckDate = prefs.getString('lastMoodCheckDate');
-    //if (lastCheckDate != todayDate) {
+
+    if (lastCheckDate != todayDate) {
       if (mounted) {
         _showMoodCheckDialog();
       }
-    //}
+    }
   }
 
   Future<void> _showMoodCheckDialog() async {
     if (!mounted) return;
+
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -143,9 +211,11 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         _currentMoodId = moodId;
       });
     }
+
     final prefs = await SharedPreferences.getInstance();
     final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     await prefs.setString('lastMoodCheckDate', todayDate);
+
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
@@ -166,14 +236,19 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       }
     }
   }
+  // --- End Mood Check Functions ---
 
-  // --- Data Fetching & User Management (Keep as they were) ---
+  // --- Data Fetching and User Management ---
+
+  // Fetches one-time data
   Future<void> _loadInitialData() async {
     if (!mounted) return;
     if (!_isLoadingData) setState(() => _isLoadingData = true);
+
     String finalUserName = "User";
-    String finalAvatarId = 'default';
     String finalMoodId = 'neutral';
+    // Removed avatar ID from here, it's now handled by the user stream
+
     try {
       User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
@@ -184,11 +259,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         if (userDoc.exists) {
           Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
           finalUserName = data['name'] ?? user.displayName ?? 'User';
-          String? fetchedId = data['selectedAvatarId'];
-          if (fetchedId != null &&
-              _availableAvatarAssets.containsKey(fetchedId)) {
-            finalAvatarId = fetchedId;
-          }
+
           Timestamp? lastUpdate = data['lastMoodUpdate'];
           if (lastUpdate != null) {
             final String todayDate = DateFormat(
@@ -209,12 +280,11 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         }
       }
     } catch (e) {
-      print("Error loading initial data (name/avatar/mood): $e");
+      print("Error loading initial data: $e");
     } finally {
       if (mounted) {
         setState(() {
           _userName = finalUserName;
-          _selectedAvatarId = finalAvatarId;
           _currentMoodId = finalMoodId;
           _isLoadingData = false;
         });
@@ -222,9 +292,11 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
-  void _initializeDassStream() {
+  // Sets up live streams
+  void _initializeStreams() {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      // Stream for DASS scores
       _dassStream = FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -232,8 +304,14 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           .orderBy('timestamp', descending: true)
           .limit(1)
           .snapshots();
+
+      // Stream for user data (avatar, etc.)
+      _userStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots();
     } else {
-      print("Cannot initialize DASS stream: User is null.");
+      print("Cannot initialize streams: User is null.");
     }
   }
 
@@ -256,15 +334,20 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
+  // This function is passed to ProfilePage
   Future<void> _updateSelectedAvatarId(String newAvatarId) async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null || !_availableAvatarAssets.containsKey(newAvatarId))
       return;
-    setState(() => _isSavingAvatar = true);
+
+    setState(() => _isSavingAvatar = true); // Set parent loading state
+
     try {
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
         {'selectedAvatarId': newAvatarId},
       );
+
+      // This setState updates the _selectedAvatarId in this parent widget
       if (mounted) {
         setState(() {
           _selectedAvatarId = newAvatarId;
@@ -287,24 +370,23 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isSavingAvatar = false);
+      if (mounted)
+        setState(() => _isSavingAvatar = false); // Stop parent loading state
     }
   }
+  // --- End Data Fetching and User Management ---
 
   @override
   Widget build(BuildContext context) {
-    final String? userId = FirebaseAuth.instance.currentUser?.uid;
-
     final List<Widget> pages = [
       // Page 0: Home Page Content
       Scaffold(
-        key: ValueKey<String>(userId ?? 'logged_out_home'),
+        key: const ValueKey<String>('home_page'), // Use a simple constant key
         backgroundColor: appBackgroundColor,
-        // --- UPDATED ---
         body: _isLoadingData
             ? Center(
                 child: Lottie.asset(
-                  'assets/animations/loading.json', // <-- Use new filename
+                  'assets/animations/loading.json',
                   width: 150,
                   height: 150,
                 ),
@@ -334,6 +416,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       // Page 2: Profile Page
       ProfilePage(
         userName: _userName,
+        onChangeAccount: _signOut, // <-- This is the fix
         selectedAvatarId: _selectedAvatarId,
         availableAvatarAssets: _availableAvatarAssets,
         onAvatarSelected: _updateSelectedAvatarId,
@@ -356,22 +439,45 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
 
   // --- Helper Widgets ---
 
+  // --- UPDATED: Header now uses StreamBuilder for live avatar updates ---
   Widget _buildHeader() {
-    String avatarAssetPath =
-        _availableAvatarAssets[_selectedAvatarId] ??
-        _availableAvatarAssets['default']!;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
       width: double.infinity,
       decoration: const BoxDecoration(color: appPrimaryColor),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: Colors.white70,
-            backgroundImage: AssetImage(avatarAssetPath),
-            onBackgroundImageError: (e, s) {
-              print("Error loading header avatar: $avatarAssetPath");
+          // StreamBuilder listens to the user document for avatar changes
+          StreamBuilder<DocumentSnapshot>(
+            stream: _userStream, // This stream is initialized in initState
+            builder: (context, snapshot) {
+              String avatarAssetId = 'default'; // Default
+
+              if (snapshot.hasData && snapshot.data!.data() != null) {
+                // Get ID from the live data
+                String? fetchedId =
+                    (snapshot.data!.data()
+                        as Map<String, dynamic>)['selectedAvatarId'];
+                if (fetchedId != null &&
+                    _availableAvatarAssets.containsKey(fetchedId)) {
+                  avatarAssetId = fetchedId;
+                }
+              }
+
+              // Get the asset path
+              String avatarAssetPath =
+                  _availableAvatarAssets[avatarAssetId] ??
+                  _availableAvatarAssets['default']!;
+
+              // Use AssetImage
+              return CircleAvatar(
+                radius: 32,
+                backgroundColor: Colors.white70,
+                backgroundImage: AssetImage(avatarAssetPath),
+                onBackgroundImageError: (e, s) {
+                  print("Error loading header avatar: $avatarAssetPath");
+                },
+              );
             },
           ),
           const SizedBox(width: 15),
@@ -393,15 +499,12 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
             ],
           ),
           const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white, size: 30),
-            onPressed: _signOut,
-            tooltip: "Logout",
-          ),
+          // Logout button removed
         ],
       ),
     );
   }
+  // --- END UPDATED Header ---
 
   Widget _buildSectionTitle(String title) {
     return Padding(
@@ -468,7 +571,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                           const SizedBox(height: 10),
                           SizedBox(
                             height: 120,
-                            // --- UPDATED ---
                             child: StreamBuilder<QuerySnapshot>(
                               stream: _dassStream,
                               builder: (context, snapshot) {
@@ -476,14 +578,12 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                                     ConnectionState.waiting) {
                                   return Center(
                                     child: Lottie.asset(
-                                      // Use Lottie here
                                       'assets/animations/loading.json',
                                       width: 100,
                                       height: 100,
                                     ),
                                   );
                                 }
-                                // ... (rest of StreamBuilder remains the same)
                                 if (snapshot.hasError) {
                                   return const Center(
                                     child: Text(

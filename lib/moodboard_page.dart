@@ -43,7 +43,7 @@ class _MoodboardPageState extends State<MoodboardPage> {
       setState(() {
         _moodboardStream = FirebaseFirestore.instance
             .collection('users')
-            .doc(_currentUser!.uid)
+            .doc(_currentUser.uid)
             .collection('moodboards')
             .orderBy('timestamp', descending: true)
             .snapshots();

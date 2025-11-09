@@ -1,10 +1,15 @@
 // In: lib/edit_moodboard_page.dart
 
+import 'dart:io'; // Import for File
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart'; // Import Image Picker
 import 'package:lottie/lottie.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:path/path.dart' as p; // Import the path package
 
 class EditMoodboardPage extends StatefulWidget {
   final QueryDocumentSnapshot? document; // Null if new entry
@@ -17,11 +22,11 @@ class EditMoodboardPage extends StatefulWidget {
 
 class _EditMoodboardPageState extends State<EditMoodboardPage> {
   final TextEditingController _titleController = TextEditingController();
-  // --- NEW: Add Content Controller ---
   final TextEditingController _contentController = TextEditingController();
-  // --- END NEW ---
   
-  List<TextEditingController> _imageUrlControllers = [TextEditingController()];
+  final List<dynamic> _images = []; // Holds Strings (URLs) and Files (new)
+  final ImagePicker _picker = ImagePicker();
+
   bool _isSaving = false;
   String? _documentId;
   String _pageTitle = 'New Moodboard';
@@ -36,22 +41,13 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
     if (widget.document != null) {
       final data = widget.document!.data() as Map<String, dynamic>;
       _titleController.text = data['title'] ?? '';
+      _contentController.text = data['content'] ?? '';
       _documentId = widget.document!.id;
       _pageTitle = 'Edit Moodboard';
       
-      // --- NEW: Load content ---
-      _contentController.text = data['content'] ?? '';
-      // --- END NEW ---
-
       final List<dynamic> imageList = data['imageUrls'] ?? [];
-      if (imageList.isNotEmpty) {
-        _imageUrlControllers = imageList.map((url) {
-          return TextEditingController(text: url as String? ?? '');
-        }).toList();
-      }
-      // Ensure at least one controller exists
-      if (_imageUrlControllers.isEmpty) {
-         _imageUrlControllers.add(TextEditingController());
+      for (var url in imageList) {
+        _images.add(url as String);
       }
     }
   }
@@ -59,11 +55,72 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
   @override
   void dispose() {
     _titleController.dispose();
-    _contentController.dispose(); // --- NEW: Dispose content ---
-    for (var controller in _imageUrlControllers) {
-      controller.dispose();
-    }
+    _contentController.dispose();
     super.dispose();
+  }
+
+  // --- 1. UPDATED: _pickImage now takes an ImageSource ---
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source, // Use the provided source
+        imageQuality: 80,
+        maxWidth: 1024,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _images.add(File(pickedFile.path)); // Add the File object to the list
+        });
+      }
+    } catch (e) {
+      _showErrorDialog("Error picking image: ${e.toString()}");
+    }
+  }
+  // --- END UPDATE ---
+
+  // --- 2. NEW: Dialog to choose camera/gallery ---
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.gallery); // Call with Gallery
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take Photo'),
+              onTap: () {
+                Navigator.of(context).pop();
+                _pickImage(ImageSource.camera); // Call with Camera
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  // --- END NEW ---
+  
+  Future<String> _uploadFile(File file, String userId) async {
+    String fileName = '${DateTime.now().millisecondsSinceEpoch}_${p.basename(file.path)}';
+    Reference storageRef = FirebaseStorage.instance
+        .ref()
+        .child('moodboard_images')
+        .child(userId)
+        .child(fileName);
+
+    UploadTask uploadTask = storageRef.putFile(file);
+    TaskSnapshot snapshot = await uploadTask;
+    String downloadUrl = await snapshot.ref.getDownloadURL();
+    return downloadUrl;
   }
 
   Future<void> _saveMoodboard() async {
@@ -82,18 +139,24 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
       return;
     }
 
-    List<String> imageUrls = _imageUrlControllers
-        .map((controller) => controller.text.trim())
-        .where((url) => url.isNotEmpty)
-        .toList();
-
     try {
+      List<String> finalImageUrls = [];
+      
+      for (var image in _images) {
+        if (image is String) {
+          finalImageUrls.add(image);
+        } else if (image is File) {
+          String downloadUrl = await _uploadFile(image, user.uid);
+          finalImageUrls.add(downloadUrl);
+        }
+      }
+
       final data = {
         'title': _titleController.text,
-        'content': _contentController.text.trim(), // --- NEW: Save content ---
+        'content': _contentController.text.trim(),
         'timestamp': FieldValue.serverTimestamp(),
         'userId': user.uid,
-        'imageUrls': imageUrls,
+        'imageUrls': finalImageUrls,
       };
 
       if (_documentId == null) {
@@ -116,12 +179,27 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
     }
   }
   
-  // (Keep _addUrlField, _removeUrlField, _showLoadingDialog, _showErrorDialog as they were)
-  void _addUrlField() { setState(() { _imageUrlControllers.add(TextEditingController()); }); }
-  void _removeUrlField(int index) { setState(() { _imageUrlControllers[index].dispose(); _imageUrlControllers.removeAt(index); }); }
-  void _showLoadingDialog() { showDialog( context: context, barrierDismissible: false, builder: (context) => Center(child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150)), ); }
-  void _showErrorDialog(String message) { if (!mounted) return; showDialog( context: context, builder: (context) => AlertDialog( title: const Text("Error"), content: Text(message), actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ], ), ); }
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150),
+      ),
+    );
+  }
 
+  void _showErrorDialog(String message) {
+     if (!mounted) return;
+     showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Error"),
+        content: Text(message),
+        actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,8 +249,8 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
                 const SizedBox(height: 12),
                 const Divider(),
                 const SizedBox(height: 12),
-
-                // --- NEW: Content Field ---
+                
+                // Content Field
                 TextField(
                   controller: _contentController,
                   decoration: const InputDecoration(
@@ -181,56 +259,106 @@ class _EditMoodboardPageState extends State<EditMoodboardPage> {
                     border: InputBorder.none,
                   ),
                   style: const TextStyle(fontSize: 16, color: Colors.black87, height: 1.5),
-                  maxLines: 8, // Give it some initial space
+                  maxLines: 8,
                   minLines: 3,
                   keyboardType: TextInputType.multiline,
                 ),
-                // --- END NEW ---
-
+                
                 const SizedBox(height: 24),
                 const Text(
-                  'Image URLs',
+                  'Images',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _imageUrlControllers.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _imageUrlControllers[index],
-                              decoration: InputDecoration(
-                                hintText: 'https://...',
-                                labelText: 'Image URL ${index + 1}',
-                                border: const OutlineInputBorder(),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              ),
-                            ),
-                          ),
-                          if (_imageUrlControllers.length > 1)
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                              onPressed: () => _removeUrlField(index),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
                 const SizedBox(height: 12),
-                TextButton.icon(
-                  icon: const Icon(Icons.add_link),
-                  label: const Text('Add another URL'),
-                  onPressed: _addUrlField,
+                
+                // Image Grid Display
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: [
+                    ..._images.map((image) => _buildImageThumbnail(image)).toList(),
+                    _buildAddImageButton(),
+                  ],
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageThumbnail(dynamic image) {
+    const double size = 100.0;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          // The Image
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8.0),
+            child: Container(
+              width: size,
+              height: size,
+              child: image is String
+                  ? CachedNetworkImage( // It's an existing URL
+                      imageUrl: image,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(color: Colors.grey[200]),
+                      errorWidget: (context, url, error) => const Icon(Icons.error, color: Colors.red),
+                    )
+                  : Image.file( // It's a new File
+                      image as File,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+          ),
+          // Remove Button
+          Positioned(
+            top: -4,
+            right: -4,
+            child: IconButton(
+              icon: const CircleAvatar(
+                radius: 12,
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.close, color: Colors.white, size: 14),
+              ),
+              onPressed: () {
+                setState(() {
+                  _images.remove(image);
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddImageButton() {
+    const double size = 100.0;
+    return InkWell(
+      // --- 3. UPDATED: Call the dialog ---
+      onTap: _showImageSourceDialog,
+      // --- END UPDATE ---
+      borderRadius: BorderRadius.circular(8.0),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8.0),
+          border: Border.all(color: Colors.grey.shade400, style: BorderStyle.solid),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_a_photo_outlined, color: Colors.grey.shade600),
+              const SizedBox(height: 4),
+              Text('Add', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            ],
           ),
         ),
       ),

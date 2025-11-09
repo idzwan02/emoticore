@@ -1,18 +1,19 @@
 // In: lib/profile_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:lottie/lottie.dart'; // <-- Import Lottie
+import 'package:lottie/lottie.dart';
 
 class ProfilePage extends StatefulWidget {
+  // --- 1. Parameters passed from Dashboard ---
   final String userName;
   final String selectedAvatarId;
   final Map<String, String> availableAvatarAssets;
-  final Function(String) onAvatarSelected;
+  final Function(String) onAvatarSelected; // Callback function
   final bool isSavingAvatar;
-
+  final VoidCallback onChangeAccount; // <-- 2. ADD THIS CALLBACK
+  // --- 3. UPDATED CONSTRUCTOR ---
   const ProfilePage({
     super.key,
     required this.userName,
@@ -20,49 +21,49 @@ class ProfilePage extends StatefulWidget {
     required this.availableAvatarAssets,
     required this.onAvatarSelected,
     required this.isSavingAvatar,
+    required this.onChangeAccount, // <-- 4. ADD THIS TO CONSTRUCTOR
   });
-
+  // --- End Parameters ---
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  // Define theme colors
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
-
+  // State Variables for this page ONLY
   String _email = 'Loading...';
   String _dateOfBirth = 'Loading...';
   String _joinedDate = 'Loading...';
   bool _isLoadingProfileData = true;
-
   @override
   void initState() {
     super.initState();
+    // Fetch data that is *only* for the profile page
     _loadProfileDetails();
   }
 
+  // Fetches data NOT already passed in (DOB, Joined Date, Email)
   Future<void> _loadProfileDetails() async {
     if (!mounted) return;
     setState(() => _isLoadingProfileData = true);
-
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      _email = user.email ?? 'No email';
+      _email = user.email ?? 'No email'; // Set email from Auth
 
       try {
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .get();
-
         if (userDoc.exists && userDoc.data() != null) {
           Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
           _dateOfBirth = data['dateOfBirth'] ?? 'Not set';
           Timestamp? joinedTimestamp = data['joinedAt'];
           if (joinedTimestamp != null) {
-            _joinedDate = DateFormat(
-              'MMMM d, yyyy',
-            ).format(joinedTimestamp.toDate());
+            _joinedDate =
+                DateFormat('MMMM d, yyyy').format(joinedTimestamp.toDate());
           } else {
             _joinedDate = 'Unknown';
           }
@@ -88,6 +89,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // Avatar Selection Dialog
   void _showAvatarSelectionDialog() {
     showDialog(
       context: context,
@@ -99,14 +101,16 @@ class _ProfilePageState extends State<ProfilePage> {
               spacing: 10.0,
               runSpacing: 10.0,
               alignment: WrapAlignment.center,
+              // Use map from WIDGET
               children: widget.availableAvatarAssets.entries.map((entry) {
                 final String avatarId = entry.key;
                 final String assetPath = entry.value;
+                // Use selected ID from WIDGET
                 bool isSelected = widget.selectedAvatarId == avatarId;
-
                 return GestureDetector(
                   onTap: () {
                     Navigator.of(context).pop();
+                    // Call CALLBACK FUNCTION from WIDGET
                     widget.onAvatarSelected(avatarId);
                   },
                   child: Container(
@@ -114,10 +118,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: isSelected
                         ? BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: appPrimaryColor,
-                              width: 3,
-                            ),
+                            border:
+                                Border.all(color: appPrimaryColor, width: 3),
                           )
                         : null,
                     child: CircleAvatar(
@@ -146,29 +148,32 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Get asset path using ID from WIDGET
     String displayAvatarPath =
         widget.availableAvatarAssets[widget.selectedAvatarId] ??
-        widget.availableAvatarAssets['default']!;
-
+            widget.availableAvatarAssets['default']!;
     return Scaffold(
       backgroundColor: appBackgroundColor,
       appBar: AppBar(
         backgroundColor: appPrimaryColor,
-        title: const Text(
-          'Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Profile',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         automaticallyImplyLeading: false,
         elevation: 1.0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () => FirebaseAuth.instance.signOut(),
-            tooltip: "Logout",
+          // --- 5. UPDATED Button ---
+          TextButton.icon(
+            icon: const Icon(Icons.logout, color: Colors.white), // Using 'logout' icon
+            label: const Text("Log Out",
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+            onPressed: widget.onChangeAccount, // Call the function from parent
+            style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0)),
           ),
+          // --- END UPDATE ---
         ],
       ),
-      // --- UPDATED ---
       body: _isLoadingProfileData
           ? Center(
               child: Lottie.asset(
@@ -194,8 +199,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             backgroundImage: AssetImage(displayAvatarPath),
                             onBackgroundImageError: (e, s) {
                               print(
-                                "Error loading main profile asset: $displayAvatarPath",
-                              );
+                                  "Error loading main profile asset: $displayAvatarPath");
                             },
                           ),
                           Positioned(
@@ -204,23 +208,18 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: CircleAvatar(
                               radius: 20,
                               backgroundColor: appPrimaryColor.withOpacity(0.8),
-                              child: const Icon(
-                                Icons.edit,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+                              child: const Icon(Icons.edit,
+                                  color: Colors.white, size: 20),
                             ),
                           ),
-                          // --- UPDATED ---
                           if (widget.isSavingAvatar)
                             Center(
                               child: Lottie.asset(
                                 'assets/animations/loading.json',
-                                width: 80, // Smaller for overlay
+                                width: 80,
                                 height: 80,
                               ),
                             ),
-                          // --- END UPDATE ---
                         ],
                       ),
                     ),
@@ -228,57 +227,40 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(
                       widget.userName,
                       style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Column(
-                      // Use a Column for the loaded data
                       children: [
                         Text(
                           _email,
                           style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey.shade700,
-                          ),
+                              fontSize: 16, color: Colors.grey.shade700),
                         ),
                         const SizedBox(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.cake_outlined,
-                              color: Colors.grey.shade600,
-                              size: 18,
-                            ),
+                            Icon(Icons.cake_outlined,
+                                color: Colors.grey.shade600, size: 18),
                             const SizedBox(width: 8),
-                            Text(
-                              'Born: $_dateOfBirth',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
+                            Text('Born: $_dateOfBirth',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.grey.shade700)),
                           ],
                         ),
                         const SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.calendar_today_outlined,
-                              color: Colors.grey.shade600,
-                              size: 16,
-                            ),
+                            Icon(Icons.calendar_today_outlined,
+                                color: Colors.grey.shade600, size: 16),
                             const SizedBox(width: 8),
-                            Text(
-                              'Joined: $_joinedDate',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
+                            Text('Joined: $_joinedDate',
+                                style: TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.grey.shade700)),
                           ],
                         ),
                       ],
