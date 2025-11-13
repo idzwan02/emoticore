@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class Dass21Page extends StatefulWidget {
   const Dass21Page({super.key});
@@ -31,15 +32,27 @@ class _Dass21PageState extends State<Dass21Page> {
 
   // --- DASS-21 Questions (Keep as before) ---
   final List<String> _questions = [
-    "I found it hard to wind down", "I was aware of dryness of my mouth", "I couldn't seem to experience any positive feeling at all",
-    "I experienced breathing difficulty (eg, excessively rapid breathing, breathlessness in the absence of physical exertion)", "I found it difficult to work up the initiative to do things",
-    "I tended to over-react to situations", "I experienced trembling (eg, in the hands)", "I felt that I was using a lot of nervous energy",
-    "I was worried about situations in which I might panic and make a fool of myself", "I felt that I had nothing to look forward to",
-    "I found myself getting agitated", "I found it difficult to relax", "I felt down-hearted and blue",
-    "I was intolerant of anything that kept me from getting on with what I was doing", "I felt I was close to panic",
-    "I was unable to become enthusiastic about anything", "I felt I wasn't worth much as a person", "I felt that I was rather touchy",
+    "I found it hard to wind down",
+    "I was aware of dryness of my mouth",
+    "I couldn't seem to experience any positive feeling at all",
+    "I experienced breathing difficulty (eg, excessively rapid breathing, breathlessness in the absence of physical exertion)",
+    "I found it difficult to work up the initiative to do things",
+    "I tended to over-react to situations",
+    "I experienced trembling (eg, in the hands)",
+    "I felt that I was using a lot of nervous energy",
+    "I was worried about situations in which I might panic and make a fool of myself",
+    "I felt that I had nothing to look forward to",
+    "I found myself getting agitated",
+    "I found it difficult to relax",
+    "I felt down-hearted and blue",
+    "I was intolerant of anything that kept me from getting on with what I was doing",
+    "I felt I was close to panic",
+    "I was unable to become enthusiastic about anything",
+    "I felt I wasn't worth much as a person",
+    "I felt that I was rather touchy",
     "I was aware of the action of my heart in the absence of physical exertion (eg, sense of heart rate increase, heart missing a beat)",
-    "I felt scared without any good reason", "I felt that life was meaningless"
+    "I felt scared without any good reason",
+    "I felt that life was meaningless",
   ];
 
   // --- UPDATED: Answer labels WITHOUT the score prefix ---
@@ -52,9 +65,27 @@ class _Dass21PageState extends State<Dass21Page> {
 
   // Mapping from Question Index (0-20) to Scale (D, A, S) (Keep as before)
   final Map<int, String> _questionIndexToScale = {
-    0: 'S', 1: 'A', 2: 'D', 3: 'A', 4: 'D', 5: 'S', 6: 'A', 7: 'S', 8: 'A',
-    9: 'D', 10: 'S', 11: 'S', 12: 'D', 13: 'S', 14: 'A', 15: 'D', 16: 'D',
-    17: 'S', 18: 'A', 19: 'A', 20: 'D'
+    0: 'S',
+    1: 'A',
+    2: 'D',
+    3: 'A',
+    4: 'D',
+    5: 'S',
+    6: 'A',
+    7: 'S',
+    8: 'A',
+    9: 'D',
+    10: 'S',
+    11: 'S',
+    12: 'D',
+    13: 'S',
+    14: 'A',
+    15: 'D',
+    16: 'D',
+    17: 'S',
+    18: 'A',
+    19: 'A',
+    20: 'D',
   };
 
   @override
@@ -102,15 +133,21 @@ class _Dass21PageState extends State<Dass21Page> {
           preferredSize: const Size.fromHeight(4.0),
           child: LinearProgressIndicator(
             value: (_currentPage + 1) / 3,
-            backgroundColor: Colors.white.withOpacity(0.3), // Lighter background
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white), // White progress
+            backgroundColor: Colors.white.withOpacity(
+              0.3,
+            ), // Lighter background
+            valueColor: const AlwaysStoppedAnimation<Color>(
+              Colors.white,
+            ), // White progress
           ),
         ),
       ),
       body: PageView(
         controller: _pageController,
         onPageChanged: (int page) {
-          setState(() { _currentPage = page; });
+          setState(() {
+            _currentPage = page;
+          });
         },
         children: [
           _buildQuestionPage(0),
@@ -119,7 +156,10 @@ class _Dass21PageState extends State<Dass21Page> {
         ],
       ),
       // --- Styled Navigation Buttons ---
-      bottomNavigationBar: _buildNavigationButtons(isLastPage, currentPageAnswered),
+      bottomNavigationBar: _buildNavigationButtons(
+        isLastPage,
+        currentPageAnswered,
+      ),
     );
   }
 
@@ -128,8 +168,8 @@ class _Dass21PageState extends State<Dass21Page> {
     int questionsPerPage = 7;
     int startIndex = pageIndex * questionsPerPage;
     int endIndex = startIndex + questionsPerPage > _questions.length
-                   ? _questions.length
-                   : startIndex + questionsPerPage;
+        ? _questions.length
+        : startIndex + questionsPerPage;
 
     return SingleChildScrollView(
       key: PageStorageKey('page_$pageIndex'),
@@ -139,25 +179,33 @@ class _Dass21PageState extends State<Dass21Page> {
         children: [
           // Show instructions only on the first page, inside a card
           if (pageIndex == 0) ...[
-             Card(
-               elevation: 1.0,
-               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-               color: cardBackgroundColor,
-               margin: const EdgeInsets.only(bottom: 16),
-               child: const Padding(
-                 padding: EdgeInsets.all(16.0),
-                 child: Text(
+            Card(
+              elevation: 1.0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              color: cardBackgroundColor,
+              margin: const EdgeInsets.only(bottom: 16),
+              child: const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
                   "Please read each statement and select the option which indicates how much the statement applied to you over the past week.",
-                  style: TextStyle(fontSize: 15.0, color: Color(0xFF555555), height: 1.4),
+                  style: TextStyle(
+                    fontSize: 15.0,
+                    color: Color(0xFF555555),
+                    height: 1.4,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-               ),
-             ),
+              ),
+            ),
           ],
-          
+
           // Generate the 7 questions for this page
           for (int i = startIndex; i < endIndex; i++)
-            _buildQuestionCard(i), // Call helper to build a Card for each question
+            _buildQuestionCard(
+              i,
+            ), // Call helper to build a Card for each question
         ],
       ),
     );
@@ -187,7 +235,7 @@ class _Dass21PageState extends State<Dass21Page> {
               ),
             ),
             const SizedBox(height: 20.0),
-            
+
             // --- Answer Options (Animated Buttons) ---
             Column(
               children: _answerLabels.asMap().entries.map((entry) {
@@ -200,12 +248,16 @@ class _Dass21PageState extends State<Dass21Page> {
                   child: AnimatedContainer(
                     duration: _animationDuration,
                     decoration: BoxDecoration(
-                       color: isSelected ? selectedOptionFillColor : cardBackgroundColor,
-                       borderRadius: BorderRadius.circular(12),
-                       border: Border.all(
-                          color: isSelected ? selectedOptionBorderColor : unselectedOptionBorderColor,
-                          width: isSelected ? 2.0 : 1.5,
-                       )
+                      color: isSelected
+                          ? selectedOptionFillColor
+                          : cardBackgroundColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? selectedOptionBorderColor
+                            : unselectedOptionBorderColor,
+                        width: isSelected ? 2.0 : 1.5,
+                      ),
                     ),
                     child: Material(
                       color: Colors.transparent,
@@ -217,12 +269,19 @@ class _Dass21PageState extends State<Dass21Page> {
                         },
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 15.0),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 15.0,
+                          ),
                           child: Row(
                             children: [
                               Icon(
-                                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
-                                color: isSelected ? selectedOptionBorderColor : unselectedOptionBorderColor,
+                                isSelected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.radio_button_unchecked_rounded,
+                                color: isSelected
+                                    ? selectedOptionBorderColor
+                                    : unselectedOptionBorderColor,
                                 size: 22,
                               ),
                               const SizedBox(width: 12),
@@ -232,7 +291,9 @@ class _Dass21PageState extends State<Dass21Page> {
                                   style: TextStyle(
                                     fontSize: 15,
                                     color: optionTextColor,
-                                    fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w500
+                                        : FontWeight.normal,
                                   ),
                                 ),
                               ),
@@ -256,7 +317,10 @@ class _Dass21PageState extends State<Dass21Page> {
   Widget _buildNavigationButtons(bool isLastPage, bool currentPageAnswered) {
     return Container(
       color: appBackgroundColor, // Use theme background
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0).copyWith(bottom: 32.0),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 20.0,
+        vertical: 16.0,
+      ).copyWith(bottom: 32.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -267,10 +331,15 @@ class _Dass21PageState extends State<Dass21Page> {
               style: TextButton.styleFrom(
                 backgroundColor: Colors.white, // White background
                 foregroundColor: Colors.black54,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
               ),
               onPressed: _currentPage > 0 ? _goToPreviousPage : null,
-              child: const Text('Back', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Back',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
           SizedBox(
@@ -280,17 +349,24 @@ class _Dass21PageState extends State<Dass21Page> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: appPrimaryColor,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
                 disabledBackgroundColor: Colors.grey.shade300,
               ),
               onPressed: currentPageAnswered
-                 ? (isLastPage
-                      ? (_answers.length == _questions.length ? _submitResults : null)
-                      : _goToNextPage)
-                 : null,
+                  ? (isLastPage
+                        ? (_answers.length == _questions.length
+                              ? _submitResults
+                              : null)
+                        : _goToNextPage)
+                  : null,
               child: Text(
                 isLastPage ? 'Finish' : 'Next',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -302,111 +378,210 @@ class _Dass21PageState extends State<Dass21Page> {
   // --- Page Navigation Functions (Keep as before) ---
   void _goToNextPage() {
     if (_currentPage < 2) {
-      _pageController.nextPage( duration: const Duration(milliseconds: 400), curve: Curves.easeInOut, );
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
   void _goToPreviousPage() {
     if (_currentPage > 0) {
-      _pageController.previousPage( duration: const Duration(milliseconds: 400), curve: Curves.easeInOut, );
+      _pageController.previousPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
   bool _checkIfCurrentPageAnswered() {
     int questionsPerPage = 7;
     int startIndex = _currentPage * questionsPerPage;
-    int endIndex = startIndex + questionsPerPage > _questions.length ? _questions.length : startIndex + questionsPerPage;
+    int endIndex = startIndex + questionsPerPage > _questions.length
+        ? _questions.length
+        : startIndex + questionsPerPage;
     for (int i = startIndex; i < endIndex; i++) {
-      if (!_answers.containsKey(i)) { return false; }
+      if (!_answers.containsKey(i)) {
+        return false;
+      }
     }
     return true;
   }
   // --- END Navigation ---
 
-
   // --- Submit Function (Keep as before) ---
   Future<void> _submitResults() async {
-    if (_answers.length != _questions.length) { ScaffoldMessenger.of(context).showSnackBar( const SnackBar(content: Text('Please answer all questions.')), ); return; }
-    int depressionSum = 0; int anxietySum = 0; int stressSum = 0;
+    if (_answers.length != _questions.length) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please answer all questions.')),
+      );
+      return;
+    }
+    int depressionSum = 0;
+    int anxietySum = 0;
+    int stressSum = 0;
     _answers.forEach((index, score) {
       String scale = _questionIndexToScale[index]!;
-      switch (scale) { case 'D': depressionSum += score; break; case 'A': anxietySum += score; break; case 'S': stressSum += score; break; }
+      switch (scale) {
+        case 'D':
+          depressionSum += score;
+          break;
+        case 'A':
+          anxietySum += score;
+          break;
+        case 'S':
+          stressSum += score;
+          break;
+      }
     });
-    int finalDepressionScore = depressionSum * 2; int finalAnxietyScore = anxietySum * 2; int finalStressScore = stressSum * 2;
-    Map<String, int> answersWithStringKeys = _answers.map((key, value) => MapEntry(key.toString(), value));
+    int finalDepressionScore = depressionSum * 2;
+    int finalAnxietyScore = anxietySum * 2;
+    int finalStressScore = stressSum * 2;
+    Map<String, int> answersWithStringKeys = _answers.map(
+      (key, value) => MapEntry(key.toString(), value),
+    );
     User? currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
-      showDialog( context: context, barrierDismissible: false, builder: (context) => Center(child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150)) );
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Lottie.asset(
+            'assets/animations/loading.json',
+            width: 150,
+            height: 150,
+          ),
+        ),
+      );
       try {
-        await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).collection('dass21_results')
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('dass21_results')
             .add({
-                'depressionScore': finalDepressionScore, 'anxietyScore': finalAnxietyScore, 'stressScore': finalStressScore,
-                'timestamp': FieldValue.serverTimestamp(), 'rawAnswers': answersWithStringKeys,
+              'depressionScore': finalDepressionScore,
+              'anxietyScore': finalAnxietyScore,
+              'stressScore': finalStressScore,
+              'timestamp': FieldValue.serverTimestamp(),
+              'rawAnswers': answersWithStringKeys,
             });
-         if(Navigator.canPop(context)) Navigator.pop(context); // Pop loading
-         // Show results dialog
-         _showResultsDialog(finalDepressionScore, finalAnxietyScore, finalStressScore);
 
+        // Save the completion time to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'lastDass21CompletionDate',
+          DateTime.now().toIso8601String(),
+        );
+
+        if (Navigator.canPop(context)) Navigator.pop(context); // Pop loading
+        // Show results dialog
+        _showResultsDialog(
+          finalDepressionScore,
+          finalAnxietyScore,
+          finalStressScore,
+        );
       } catch (e) {
-          if(Navigator.canPop(context)) Navigator.pop(context); // Pop loading
-          print("Error saving DASS-21 results: $e");
-          ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('Error saving results: ${e.toString()}'), backgroundColor: Colors.red), );
+        if (Navigator.canPop(context)) Navigator.pop(context); // Pop loading
+        print("Error saving DASS-21 results: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving results: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    } else { ScaffoldMessenger.of(context).showSnackBar( const SnackBar(content: Text('Error: User not logged in.'), backgroundColor: Colors.red), ); }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: User not logged in.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // --- UPDATED Results Dialog (to show scores) ---
   Future<void> _showResultsDialog(int depression, int anxiety, int stress) {
-     return showDialog<void>(
-        context: context,
-        barrierDismissible: false, // User must tap button
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Assessment Completed!'),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
-            content: SingleChildScrollView(
-              child: ListBody(
-                children: <Widget>[
-                  Text('Your scores (multiplied by 2) are:'),
-                  const SizedBox(height: 15),
-                  Text('Depression: $depression', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Anxiety: $anxiety', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Stress: $stress', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 15),
-                  const Text('These scores have been saved and your dashboard chart will be updated.', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                ],
-              ),
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap button
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Assessment Completed!'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15.0),
+          ),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text('Your scores (multiplied by 2) are:'),
+                const SizedBox(height: 15),
+                Text(
+                  'Depression: $depression',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Anxiety: $anxiety',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Stress: $stress',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 15),
+                const Text(
+                  'These scores have been saved and your dashboard chart will be updated.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ],
             ),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('OK', style: TextStyle(color: appPrimaryColor, fontWeight: FontWeight.bold)),
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close results dialog
-                  if (Navigator.canPop(context)) {
-                     Navigator.of(context).pop(); // Pop quiz page
-                  }
-                },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  color: appPrimaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ],
-          );
-        },
-      );
+              onPressed: () {
+                Navigator.of(context).pop(); // Close results dialog
+                if (Navigator.canPop(context)) {
+                  Navigator.of(context).pop(); // Pop quiz page
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // --- Exit Confirmation Dialog (Keep as before) ---
-   Future<void> _showExitConfirmationDialog() async {
+  Future<void> _showExitConfirmationDialog() async {
     final bool? shouldPop = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Exit Assessment?'), content: const Text('Your progress will be lost if you exit now.'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+        title: const Text('Exit Assessment?'),
+        content: const Text('Your progress will be lost if you exit now.'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15.0),
+        ),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Exit', style: TextStyle(color: Colors.red))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Exit', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
-    if (shouldPop ?? false) { if(Navigator.canPop(context)) Navigator.pop(context); }
+    if (shouldPop ?? false) {
+      if (Navigator.canPop(context)) Navigator.pop(context);
+    }
   }
-
 } // End of _Dass21PageState

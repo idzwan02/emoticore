@@ -1,5 +1,4 @@
 // In: lib/edit_journal_page.dart
-
 import 'dart:io'; // Import for File operations
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,8 +11,18 @@ import 'package:cached_network_image/cached_network_image.dart'; // For displayi
 
 class EditJournalPage extends StatefulWidget {
   final QueryDocumentSnapshot? document; // Null if new entry
+  
+  // --- 1. ADD THESE NEW PARAMETERS ---
+  final String? prefilledTitle;
+  final String? prefilledContent;
 
-  const EditJournalPage({super.key, this.document});
+  const EditJournalPage({
+    super.key, 
+    this.document,
+    this.prefilledTitle, // Add to constructor
+    this.prefilledContent, // Add to constructor
+  });
+  // --- END ADD ---
 
   @override
   State<EditJournalPage> createState() => _EditJournalPageState();
@@ -24,17 +33,12 @@ class _EditJournalPageState extends State<EditJournalPage> {
   final TextEditingController _contentController = TextEditingController();
   bool _isSaving = false;
   String? _documentId;
-
   bool _isImportant = false;
   bool _isBookmarked = false;
-
-  // --- NEW: State variables for image handling ---
-  File? _pickedImageFile; // Holds the new file selected from the device
-  String? _existingImageUrl; // Holds the URL of an already-uploaded image
-  bool _imageWasRemoved = false; // Flag if user removes an existing image
-  final ImagePicker _picker = ImagePicker(); // Instance of image_picker
-  // --- END NEW ---
-
+  File? _pickedImageFile; 
+  String? _existingImageUrl; 
+  bool _imageWasRemoved = false; 
+  final ImagePicker _picker = ImagePicker(); 
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
   static const Color cardBackgroundColor = Color(0xFFFCFCFC);
@@ -42,18 +46,23 @@ class _EditJournalPageState extends State<EditJournalPage> {
   @override
   void initState() {
     super.initState();
+    
+    // --- 2. UPDATE THIS LOGIC ---
     if (widget.document != null) {
+      // Editing an existing entry
       final data = widget.document!.data() as Map<String, dynamic>;
       _titleController.text = data['title'] ?? '';
       _contentController.text = data['content'] ?? '';
       _documentId = widget.document!.id;
       _isImportant = data['isImportant'] ?? false;
       _isBookmarked = data['isBookmarked'] ?? false;
-      
-      // --- NEW: Load existing image URL ---
-      _existingImageUrl = data['imageUrl']; // Assumes field is named 'imageUrl'
-      // --- END NEW ---
+      _existingImageUrl = data['imageUrl']; 
+    } else {
+      // This is a new entry, check for pre-filled text
+      _titleController.text = widget.prefilledTitle ?? '';
+      _contentController.text = widget.prefilledContent ?? '';
     }
+    // --- END UPDATE ---
   }
 
   @override
@@ -62,8 +71,33 @@ class _EditJournalPageState extends State<EditJournalPage> {
     _contentController.dispose();
     super.dispose();
   }
-
-  // --- NEW: Function to pick an image ---
+  
+  // ... (rest of the file is unchanged) ...
+  // (Function _pickImage, _showImageSourceDialog, _saveEntry, etc...)
+  // ... (build method is unchanged) ...
+  
+  // --- NO OTHER CHANGES ARE NEEDED IN THIS FILE ---
+  
+  // (Keep _deleteEntry, _showLoadingDialog, _showErrorDialog as they were)
+  Future<void> _deleteEntry() async {
+    if (_documentId == null) return;
+    bool? deleteConfirmed = await showDialog<bool>( context: context, builder: (context) => AlertDialog( title: const Text('Delete Entry?'), content: const Text('Are you sure you want to delete this journal entry? This cannot be undone.'), actions: [ TextButton( onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'), ), TextButton( onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete'), ), ], ), );
+    if (deleteConfirmed != true) return;
+    setState(() => _isSaving = true); _showLoadingDialog();
+    User? user = FirebaseAuth.instance.currentUser; if (user == null) return;
+    try {
+      // TODO: Add logic here to delete the image from Firebase Storage if it exists
+      await FirebaseFirestore.instance .collection('users') .doc(user.uid) .collection('journal_entries') .doc(_documentId) .delete();
+      if (mounted) { Navigator.pop(context); Navigator.pop(context); }
+    } catch (e) { if (mounted) Navigator.pop(context); _showErrorDialog("Error deleting entry: ${e.toString()}");
+    } finally { if (mounted) setState(() => _isSaving = false); }
+  }
+  void _showLoadingDialog() { showDialog( context: context, barrierDismissible: false, builder: (context) => Center( child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150), ), );
+  }
+  void _showErrorDialog(String message) { if (!mounted) return; showDialog( context: context, builder: (context) => AlertDialog( title: const Text("Error"), content: Text(message), actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ], ), );
+  }
+  
+  // (This function remains unchanged)
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? pickedFile = await _picker.pickImage(
@@ -71,7 +105,6 @@ class _EditJournalPageState extends State<EditJournalPage> {
         maxWidth: 1024, // Resize for faster uploads and less storage
         imageQuality: 85,
       );
-
       if (pickedFile != null) {
         setState(() {
           _pickedImageFile = File(pickedFile.path);
@@ -83,9 +116,8 @@ class _EditJournalPageState extends State<EditJournalPage> {
       _showErrorDialog("Error picking image: ${e.toString()}");
     }
   }
-  // --- END NEW ---
   
-  // --- NEW: Dialog to choose camera/gallery ---
+  // (This function remains unchanged)
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
@@ -113,51 +145,37 @@ class _EditJournalPageState extends State<EditJournalPage> {
       ),
     );
   }
-  // --- END NEW ---
-
-  // --- UPDATED: Save or Update Entry ---
+  
+  // (This function remains unchanged)
   Future<void> _saveEntry() async {
     if (_titleController.text.isEmpty || _contentController.text.isEmpty) {
       _showErrorDialog("Please fill out both the title and content.");
       return;
     }
-
     setState(() => _isSaving = true);
     _showLoadingDialog();
-
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) Navigator.pop(context); // Pop loading
       _showErrorDialog("You must be logged in to save an entry.");
       return;
     }
-
     try {
       String? finalImageUrl = _existingImageUrl; // Start with the image we already have
-
-      // --- NEW: Upload logic ---
-      // 1. If a new image was picked, upload it
       if (_pickedImageFile != null) {
-        // Create a unique file name
         String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
         Reference storageRef = FirebaseStorage.instance
             .ref()
             .child('journal_images') // Folder for all journal images
             .child(user.uid) // Subfolder for this user
             .child(fileName); // The file
-
         UploadTask uploadTask = storageRef.putFile(_pickedImageFile!);
         TaskSnapshot snapshot = await uploadTask;
         finalImageUrl = await snapshot.ref.getDownloadURL(); // Get the public URL
       }
-      // 2. If the user removed the image and didn't pick a new one
       else if (_imageWasRemoved) {
         finalImageUrl = null;
-        // Note: This doesn't delete the old image from Storage
-        // to keep the code simple, but you could add that logic.
       }
-      // --- END NEW ---
-
       final entryData = {
         'title': _titleController.text,
         'content': _contentController.text,
@@ -167,7 +185,6 @@ class _EditJournalPageState extends State<EditJournalPage> {
         'isBookmarked': _isBookmarked,
         'imageUrl': finalImageUrl, // Save the final URL (or null)
       };
-
       if (_documentId == null) {
         // New Entry
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
@@ -177,7 +194,6 @@ class _EditJournalPageState extends State<EditJournalPage> {
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('journal_entries').doc(_documentId).update(entryData);
       }
-
       if (mounted) {
         Navigator.pop(context); // Pop loading dialog
         Navigator.pop(context); // Pop back to journal list
@@ -189,37 +205,20 @@ class _EditJournalPageState extends State<EditJournalPage> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
-  
-  // (Keep _deleteEntry, _showLoadingDialog, _showErrorDialog as they were)
-  Future<void> _deleteEntry() async {
-     if (_documentId == null) return;
-     bool? deleteConfirmed = await showDialog<bool>( context: context, builder: (context) => AlertDialog( title: const Text('Delete Entry?'), content: const Text('Are you sure you want to delete this journal entry? This cannot be undone.'), actions: [ TextButton( onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'), ), TextButton( onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete'), ), ], ), );
-     if (deleteConfirmed != true) return;
-     setState(() => _isSaving = true); _showLoadingDialog();
-     User? user = FirebaseAuth.instance.currentUser; if (user == null) return;
-     try {
-       // TODO: Add logic here to delete the image from Firebase Storage if it exists
-       await FirebaseFirestore.instance .collection('users') .doc(user.uid) .collection('journal_entries') .doc(_documentId) .delete();
-       if (mounted) { Navigator.pop(context); Navigator.pop(context); }
-     } catch (e) { if (mounted) Navigator.pop(context); _showErrorDialog("Error deleting entry: ${e.toString()}"); } finally { if (mounted) setState(() => _isSaving = false); }
-  }
-  void _showLoadingDialog() { showDialog( context: context, barrierDismissible: false, builder: (context) => Center( child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150), ), ); }
-  void _showErrorDialog(String message) { if (!mounted) return; showDialog( context: context, builder: (context) => AlertDialog( title: const Text("Error"), content: Text(message), actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ], ), ); }
 
-
+  // (This build method remains unchanged)
   @override
   Widget build(BuildContext context) {
     String formattedDate = '';
     if (widget.document != null) {
-       final data = widget.document!.data() as Map<String, dynamic>;
-       Timestamp? ts = data['timestamp'];
-       if (ts != null) { formattedDate = DateFormat('MMMM d, yyyy  h:mm a').format(ts.toDate()); }
+      final data = widget.document!.data() as Map<String, dynamic>;
+      Timestamp? ts = data['timestamp'];
+      if (ts != null) { formattedDate = DateFormat('MMMM d, yyyy  h:mm a').format(ts.toDate()); }
     }
-
     return Scaffold(
       backgroundColor: appBackgroundColor,
       appBar: AppBar(
-         backgroundColor: appPrimaryColor,
+        backgroundColor: appPrimaryColor,
         leading: IconButton( icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context), ),
         title: Text( _documentId == null ? 'New Entry' : 'Edit Entry', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), ),
         actions: [
@@ -240,10 +239,7 @@ class _EditJournalPageState extends State<EditJournalPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- NEW: Image Display Area ---
                 _buildImageDisplay(),
-                // --- END NEW ---
-
                 TextField(
                   controller: _titleController,
                   autofocus: _documentId == null,
@@ -257,10 +253,10 @@ class _EditJournalPageState extends State<EditJournalPage> {
                   textCapitalization: TextCapitalization.sentences,
                 ),
                 if (formattedDate.isNotEmpty)
-                   Padding(
-                     padding: const EdgeInsets.only(top: 4.0, bottom: 12.0),
-                     child: Text( formattedDate, style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic), ),
-                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0, bottom: 12.0),
+                    child: Text( formattedDate, style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic), ),
+                  ),
                 if (formattedDate.isEmpty) const SizedBox(height: 12),
                 const Divider(),
                 const SizedBox(height: 12),
@@ -282,14 +278,11 @@ class _EditJournalPageState extends State<EditJournalPage> {
       ),
     );
   }
-  
-  // --- NEW: Helper Widget to display the image ---
-  Widget _buildImageDisplay() {
-    // Determine if an image should be shown
-    bool showImage = (_pickedImageFile != null || (_existingImageUrl != null && !_imageWasRemoved));
 
+  // (This helper widget remains unchanged)
+  Widget _buildImageDisplay() {
+    bool showImage = (_pickedImageFile != null || (_existingImageUrl != null && !_imageWasRemoved));
     if (!showImage) {
-      // Show "Add Photo" button
       return Center(
         child: TextButton.icon(
           icon: Icon(Icons.add_a_photo_outlined, color: Colors.grey.shade700),
@@ -301,24 +294,21 @@ class _EditJournalPageState extends State<EditJournalPage> {
         ),
       );
     }
-    
-    // Show the image in a stack with a remove button
     return Stack(
       alignment: Alignment.topRight,
       children: [
-        // The Image itself
         ClipRRect(
           borderRadius: BorderRadius.circular(12.0),
           child: Container(
-             width: double.infinity,
-             height: 200, // Fixed height for the image preview
-             color: Colors.grey.shade200, // Background for image
-             child: _pickedImageFile != null
-                ? Image.file( // Show the newly picked file
+            width: double.infinity,
+            height: 200, 
+            color: Colors.grey.shade200, 
+            child: _pickedImageFile != null
+                ? Image.file( 
                     _pickedImageFile!,
                     fit: BoxFit.cover,
                   )
-                : CachedNetworkImage( // Show the existing network image
+                : CachedNetworkImage( 
                     imageUrl: _existingImageUrl!,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Center(child: Lottie.asset('assets/animations/loading.json', width: 60, height: 60)),
@@ -326,7 +316,6 @@ class _EditJournalPageState extends State<EditJournalPage> {
                   ),
           ),
         ),
-        // Remove Image Button
         IconButton(
           onPressed: () {
             setState(() {
@@ -341,5 +330,4 @@ class _EditJournalPageState extends State<EditJournalPage> {
       ],
     );
   }
-  // --- END NEW ---
 }

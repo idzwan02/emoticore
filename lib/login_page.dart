@@ -1,5 +1,4 @@
 // In: lib/login_page.dart
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
@@ -10,7 +9,6 @@ import 'custom_page_route.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
-
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -18,10 +16,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  // --- 1. Add state variable for password visibility ---
   bool _isPasswordVisible = false;
-  // --- End ---
 
   @override
   void dispose() {
@@ -32,7 +27,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _signIn() async {
     BuildContext? dialogContext;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -47,28 +42,33 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     );
-
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      // --- 1. CAPTURE THE UserCredential ---
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
-         Navigator.pop(dialogContext!);
+      // --- 2. CHECK IF USER IS VALID ---
+      if (userCredential.user == null) {
+        throw FirebaseAuthException(code: 'null-user', message: 'Failed to sign in.');
       }
 
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+      }
+      
       if (mounted) {
+        // --- 3. PASS THE USER TO THE CONSTRUCTOR ---
         Navigator.pushReplacement(
           context,
-          FadeRoute(page: const EmoticoreMainPage()),
+          FadeRoute(page: EmoticoreMainPage(user: userCredential.user!)),
         );
       }
-
     } on FirebaseAuthException catch (e) {
-       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
-          Navigator.pop(dialogContext!);
-       }
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -78,17 +78,17 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
-       if (dialogContext != null && Navigator.canPop(dialogContext!)) {
-          Navigator.pop(dialogContext!);
-       }
-       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text("An unexpected error occurred: ${e.toString()}"),
-             backgroundColor: Colors.red,
-           ),
-         );
-       }
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) {
+        Navigator.pop(dialogContext!);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("An unexpected error occurred: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -96,7 +96,6 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     const Color tealBlue = Color(0xFF5E8C95);
     const Color lightGray = Color(0xFFD9D6D6);
-
     return Scaffold(
       backgroundColor: tealBlue,
       body: SafeArea(
@@ -170,17 +169,16 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                         const Align(
-                           alignment: Alignment.centerLeft,
-                           child: Text("PASSWORD",
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text("PASSWORD",
                             style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
-                           ),
-                         ),
+                          ),
+                        ),
                         const SizedBox(height: 10),
-                        // --- 2. Update Password TextField ---
                         TextField(
                           controller: _passwordController,
-                          obscureText: !_isPasswordVisible, // <-- Connect to state
+                          obscureText: !_isPasswordVisible,
                           decoration: InputDecoration(
                             hintText: "Enter your password",
                             filled: true,
@@ -189,23 +187,19 @@ class _LoginPageState extends State<LoginPage> {
                               borderRadius: BorderRadius.circular(20),
                               borderSide: BorderSide.none,
                             ),
-                            // --- 3. Add the visibility toggle button ---
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
                                 color: Colors.grey.shade600,
                               ),
                               onPressed: () {
-                                // Toggle the state
                                 setState(() {
                                   _isPasswordVisible = !_isPasswordVisible;
                                 });
                               },
                             ),
-                            // --- End ---
                           ),
                         ),
-                        // --- End Update ---
                         const SizedBox(height: 30),
                         Center(
                           child: ElevatedButton(
@@ -233,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
                                 );
                               },
                               child: const Text("Forgot Password?",
-                                  style: TextStyle(color: Color(0xFFA0A0A0))),
+                                style: TextStyle(color: Color(0xFFA0A0A0))),
                             ),
                             TextButton(
                               onPressed: () {
@@ -243,7 +237,7 @@ class _LoginPageState extends State<LoginPage> {
                                 );
                               },
                               child: const Text("Sign up",
-                                  style: TextStyle(color: Color(0xFFA0A0A0))),
+                                style: TextStyle(color: Color(0xFFA0A0A0))),
                             ),
                           ],
                         ),

@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'custom_page_route.dart';
-import 'dashboard_page.dart'; // Make sure this import is correct
+import 'dashboard_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -29,12 +29,9 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
 
-  // --- 1. ADD AVATAR STATE AND MAP ---
-
-  // State variable to hold the chosen avatar
   String _selectedAvatarId = 'user'; // Default avatar ID
 
-  // Copied from dashboard_page.dart
+  // Avatar Map
   final Map<String, String> _availableAvatarAssets = {
     'default': 'assets/avatars/user.png',
     'astronaut (2)': 'assets/avatars/astronaut (2).png',
@@ -94,7 +91,6 @@ class _RegisterPageState extends State<RegisterPage> {
     'woman (6)': 'assets/avatars/woman (6).png',
     'woman': 'assets/avatars/woman.png',
   };
-  // --- END OF STEP 1 ---
 
   @override
   void dispose() {
@@ -124,15 +120,13 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
     if (_passwordController.text != _confirmPasswordController.text) {
-      if (dialogContext != null && Navigator.canPop(dialogContext!))
-        Navigator.pop(dialogContext!);
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
       _showErrorDialog("Passwords do not match.");
       return;
     }
 
     if (_dateController.text.isEmpty) {
-      if (dialogContext != null && Navigator.canPop(dialogContext!))
-        Navigator.pop(dialogContext!);
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
       _showErrorDialog("Please select your date of birth.");
       return;
     }
@@ -146,35 +140,37 @@ class _RegisterPageState extends State<RegisterPage> {
         await userCredential.user!.updateDisplayName(_nameController.text.trim());
 
         FirebaseFirestore firestore = FirebaseFirestore.instance;
-        // --- 5. SAVE AVATAR ID TO FIRESTORE ---
         await firestore.collection("users").doc(userCredential.user!.uid).set({
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'dateOfBirth': _dateController.text.trim(),
           'uid': userCredential.user!.uid,
           'joinedAt': Timestamp.now(),
-          'selectedAvatarId': _selectedAvatarId, // <-- ADDED THIS LINE
+          'selectedAvatarId': _selectedAvatarId,
         });
-        // --- END OF STEP 5 ---
       }
+
       if (mounted) {
         if (dialogContext != null && Navigator.canPop(dialogContext!)) {
           Navigator.pop(dialogContext!);
         }
-        Navigator.pushAndRemoveUntil(
-          context,
-          FadeRoute(page: const EmoticoreMainPage()),
-          (route) => false,
-        );
+        
+        // --- THIS IS THE FIX ---
+        if (userCredential.user != null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            FadeRoute(page: EmoticoreMainPage(user: userCredential.user!)),
+            (route) => false,
+          );
+        }
+        // --- END FIX ---
       }
     } on FirebaseAuthException catch (e) {
-      if (dialogContext != null && Navigator.canPop(dialogContext!))
-        Navigator.pop(dialogContext!);
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
       _showErrorDialog(
           e.message ?? "An error occurred during registration.");
     } catch (e) {
-      if (dialogContext != null && Navigator.canPop(dialogContext!))
-        Navigator.pop(dialogContext!);
+      if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
       _showErrorDialog("An unexpected error occurred: ${e.toString()}");
     }
   }
@@ -198,7 +194,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
-    // (Colors moved to class level)
     return Scaffold(
       backgroundColor: tealBlue,
       body: SafeArea(
@@ -239,16 +234,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             TextStyle(fontSize: 14, color: Color(0xFFA0A0A0)),
                       ),
                       const SizedBox(height: 30),
-
-                      // --- 2. ADD AVATAR PICKER UI ---
                       Center(
                         child: GestureDetector(
-                          onTap: _showAvatarSelectionDialog, // Will add this
+                          onTap: _showAvatarSelectionDialog, 
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
                               CircleAvatar(
-                                radius: 60, // A good size for the form
+                                radius: 60, 
                                 backgroundColor: lightGray,
                                 backgroundImage: AssetImage(
                                     _availableAvatarAssets[_selectedAvatarId] ??
@@ -273,12 +266,10 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                       const SizedBox(height: 30),
-                      // --- END OF STEP 2 ---
-
                       _buildTextField(
-                          _nameController, // Positional arg 1
-                          "NAME", // Positional arg 2
-                          "Enter your name", // Positional arg 3
+                          _nameController,
+                          "NAME",
+                          "Enter your name",
                           lightGray: lightGray),
                       const SizedBox(height: 20),
                       _buildTextField(_emailController, "EMAIL",
@@ -291,9 +282,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         "PASSWORD",
                         "Enter your password",
                         lightGray: lightGray,
-                        obscureText: !_isPasswordVisible, // Named arg
+                        obscureText: !_isPasswordVisible, 
                         suffixIcon: IconButton(
-                          // Named arg
                           icon: Icon(
                               _isPasswordVisible
                                   ? Icons.visibility_off
@@ -311,9 +301,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         "CONFIRM PASSWORD",
                         "Re-enter your password",
                         lightGray: lightGray,
-                        obscureText: !_isConfirmPasswordVisible, // Named arg
-                        suffixIcon: IconButton(
-                          // Named arg
+                        obscureText: !_isConfirmPasswordVisible,
+                        suffixIcon: IconButton( 
                           icon: Icon(
                               _isConfirmPasswordVisible
                                   ? Icons.visibility_off
@@ -375,8 +364,7 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // --- 4. ADD AVATAR DIALOG FUNCTION ---
-  // (Adapted from profile_page.dart)
+  // (This function is unchanged)
   void _showAvatarSelectionDialog() {
     showDialog(
       context: context,
@@ -388,16 +376,13 @@ class _RegisterPageState extends State<RegisterPage> {
               spacing: 10.0,
               runSpacing: 10.0,
               alignment: WrapAlignment.center,
-              // Use map from THIS page
               children: _availableAvatarAssets.entries.map((entry) {
                 final String avatarId = entry.key;
                 final String assetPath = entry.value;
-                // Use selected ID from THIS page's state
                 bool isSelected = _selectedAvatarId == avatarId;
                 return GestureDetector(
                   onTap: () {
                     Navigator.of(context).pop();
-                    // Update THIS page's state
                     setState(() {
                       _selectedAvatarId = avatarId;
                     });
@@ -433,9 +418,8 @@ class _RegisterPageState extends State<RegisterPage> {
       },
     );
   }
-  // --- END OF STEP 4 ---
 
-  // Helper function to build text fields
+  // (This function is unchanged)
   Widget _buildTextField(
       TextEditingController controller, String label, String hintText,
       {bool obscureText = false,
@@ -462,7 +446,7 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // Helper function for decoration
+  // (This function is unchanged)
   InputDecoration _buildInputDecoration(String hintText, Color lightGray,
       {Widget? suffixIcon}) {
     return InputDecoration(
@@ -479,7 +463,7 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // Helper function for date picker
+  // (This function is unchanged)
   Future<void> _selectDate(BuildContext context) async {
     FocusScope.of(context).requestFocus(FocusNode());
     DateTime? pickedDate = await showDatePicker(
