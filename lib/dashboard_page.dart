@@ -12,6 +12,7 @@ import 'auth_gate.dart';
 import 'activities_page.dart';
 import 'custom_page_route.dart';
 import 'profile_page.dart';
+import 'streak_service.dart'; // Import the streak service
 
 class EmoticoreMainPage extends StatefulWidget {
   final User user;
@@ -24,17 +25,23 @@ class EmoticoreMainPage extends StatefulWidget {
 
 class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   int _selectedIndex = 0;
-  bool _isLoadingData = true; // This is now the ONLY loading flag
+  bool _isLoadingData = true;
   bool _isSavingAvatar = false;
   Stream<QuerySnapshot>? _dassStream;
   String _currentMoodId = 'neutral';
-  // (Maps and Colors are unchanged)
+  
+  // --- 1. ADD NEW STREAM FOR MOODBOARD COUNT ---
+  Stream<QuerySnapshot>? _moodboardStream;
+  
+  // --- Maps for Mood Data ---
   final Map<String, String> _moodEmojis = {
     'happy': ' 😊 ', 'excited': ' 😃 ', 'neutral': ' 😐 ', 'anxious': ' 😟 ', 'sad': ' 😔 ',
   };
   final Map<String, String> _moodTexts = {
     'happy': 'Happy', 'excited': 'Excited', 'neutral': 'Neutral', 'anxious': 'Anxious', 'sad': 'Sad',
   };
+  // --- End Mood Maps ---
+  // --- Color Definitions ---
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
   static const Color statNumberColor = Color(0xFF4A69FF);
@@ -43,6 +50,9 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   static const Color depressionBarColor = Color(0xFFEF5350);
   static const Color anxietyBarColor = Color(0xFFFFCA28);
   static const Color stressBarColor = Color(0xFF26C6DA);
+  static const Color streakColor = Color(0xFFF08A00); // Orange/flame color
+
+  // --- Avatar Asset Map ---
   final Map<String, String> _availableAvatarAssets = {
     'default': 'assets/avatars/user.png',
     'astronaut (2)': 'assets/avatars/astronaut (2).png',
@@ -102,51 +112,36 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     'woman (6)': 'assets/avatars/woman (6).png',
     'woman': 'assets/avatars/woman.png',
   };
+  // --- End Avatar Asset Map ---
   
   Stream<DocumentSnapshot>? _userStream;
 
   @override
   void initState() {
     super.initState();
-    // --- THIS IS THE FIX ---
-    // We only call ONE function from initState.
-    // This function will now run in the correct order.
     _initializeDashboard();
-    // --- END FIX ---
   }
 
-  // --- NEW FUNCTION to control loading order ---
   Future<void> _initializeDashboard() async {
     if (!mounted) return;
     
-    // Set loading state
     setState(() {
       _isLoadingData = true;
     });
 
     try {
-      // 1. Get the user
       User user = widget.user;
-
-      // 2. Ensure the user document exists *before* doing anything else
       await _createUserDataIfMissing(user);
-
-      // 3. NOW it is safe to initialize the streams
       _initializeStreams();
-
-      // 4. Load one-time data (like mood)
       await _loadMoodData();
 
-      // 5. Trigger daily check
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _triggerDailyMoodCheck();
       });
 
     } catch (e) {
       print("Error initializing dashboard: $e");
-      // Handle error state if necessary
     } finally {
-      // 6. Set loading to false, which rebuilds the UI
       if (mounted) {
         setState(() {
           _isLoadingData = false;
@@ -154,12 +149,109 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       }
     }
   }
-  // --- END NEW FUNCTION ---
 
   // (Daily Mood Check functions are unchanged)
-  Future<void> _triggerDailyMoodCheck() async { /* ... */ }
-  Future<void> _showMoodCheckDialog() async { /* ... */ }
-  Future<void> _saveMood(String moodId) async { /* ... */ }
+   Future<void> _triggerDailyMoodCheck() async {
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final String? lastCheckDate = prefs.getString('lastMoodCheckDate');
+
+    if (lastCheckDate != todayDate) {
+      if (mounted) {
+        _showMoodCheckDialog();
+      }
+    }
+  }
+
+  Future<void> _showMoodCheckDialog() async {
+    if (!mounted) return;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('How are you feeling today?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15.0),
+          ),
+          content: Container(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 16.0,
+                runSpacing: 16.0,
+                children: _moodEmojis.keys.map((moodId) {
+                  return GestureDetector(
+                    onTap: () {
+                      _saveMood(moodId);
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: SizedBox(
+                      width: 70,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _moodEmojis[moodId]!,
+                            style: const TextStyle(fontSize: 36),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _moodTexts[moodId]!,
+                            style: const TextStyle(fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // (saveMood is unchanged)
+  Future<void> _saveMood(String moodId) async {
+    if (mounted) {
+      setState(() {
+        _currentMoodId = moodId;
+      });
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    await prefs.setString('lastMoodCheckDate', todayDate);
+    
+    User user = widget.user; 
+    
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({'currentMood': moodId, 'lastMoodUpdate': Timestamp.now()});
+          
+      await StreakService.updateDailyStreak(user);
+          
+    } catch (e) {
+      print("Error saving mood to Firestore: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save mood.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   // (createUserDataIfMissing is unchanged)
   Future<void> _createUserDataIfMissing(User user) async {
@@ -177,6 +269,8 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           'currentMood': 'neutral',
           'dateOfBirth': 'Not set',
           'totalPoints': 0,
+          'currentStreak': 0,
+          'lastCheckInDate': null,
         });
         print("User document created successfully.");
       } catch (e) {
@@ -185,8 +279,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
-  // --- RENAMED & SIMPLIFIED ---
-  // This function is now only responsible for loading mood
+  // (loadMoodData is unchanged)
   Future<void> _loadMoodData() async {
     String finalMoodId = 'neutral';
     try {
@@ -219,7 +312,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
-  // (initializeStreams is unchanged)
+  // --- 2. UPDATE initializeStreams ---
   void _initializeStreams() {
     User user = widget.user;
     _dassStream = FirebaseFirestore.instance
@@ -233,19 +326,74 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         .collection('users')
         .doc(user.uid)
         .snapshots();
+        
+    // --- ADD THIS ---
+    _moodboardStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('moodboards')
+        .snapshots();
+    // --- END ADD ---
   }
 
   // (signOut is unchanged)
-  Future<void> _signOut() async { /* ... */ }
+    Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          FadeRoute(page: const AuthGate()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
   // (updateSelectedAvatarId is unchanged)
-  Future<void> _updateSelectedAvatarId(String newAvatarId) async { /* ... */ }
+  Future<void> _updateSelectedAvatarId(String newAvatarId) async { 
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null || !_availableAvatarAssets.containsKey(newAvatarId)) return;
+    setState(() => _isSavingAvatar = true); 
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'selectedAvatarId': newAvatarId},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Avatar updated!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      print("Error updating avatar ID: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to update avatar.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted)
+        setState(() => _isSavingAvatar = false); 
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
-    // This list is now created inside the build method.
+    // The _pages list is now created inside the build method.
     final List<Widget> pages = [
-      _buildHomePage(), // This will now correctly show loading or content
+      _buildHomePage(),
       const ActivitiesPage(),
       ProfilePage(
         onChangeAccount: _signOut,
@@ -263,7 +411,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
   
-  // (buildHomePage helper is unchanged)
+  // (buildHomePage is unchanged)
   Widget _buildHomePage() {
     return Scaffold(
       key: const ValueKey<String>('home_page'),
@@ -283,12 +431,14 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                   _buildHeader(),
                   _buildSectionTitle("Your Badges"),
                   _buildBadgesSection(),
+                  _buildSectionTitle("Daily Check-in"),
+                  _buildDailyCheckInSection(),
+                  _buildSectionTitle("Today's Tasks"),
+                  _buildTasksSection(), 
                   _buildSectionTitle("Your Statistics"),
                   _buildStatisticsSection(),
                   const SizedBox(height: 20),
                   _buildStatsCardsRow(),
-                  _buildSectionTitle("Article"),
-                  _buildArticleSection(),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -299,7 +449,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   // (Header is unchanged)
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
       width: double.infinity,
       decoration: const BoxDecoration(color: appPrimaryColor),
       child: Row(
@@ -364,7 +514,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  // --- (Rest of the file is unchanged) ---
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
@@ -640,16 +789,45 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
+  // --- 3. THIS IS THE UPDATED WIDGET ---
   Widget _buildStatsCardsRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       child: Row(
         children: [
+          // --- BADGES (Still a placeholder) ---
           Expanded(child: _buildStatCard("8", "Badges\nUnlocked")),
           const SizedBox(width: 10),
-          Expanded(child: _buildStatCard("1000", "Total\nPoints")),
+          
+          // --- TOTAL POINTS (Live) ---
+          Expanded(
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: _userStream,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return _buildStatCard("0", "Total\nPoints");
+                }
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                final int totalPoints = data['totalPoints'] ?? 0;
+                return _buildStatCard(totalPoints.toString(), "Total\nPoints");
+              }
+            ),
+          ),
           const SizedBox(width: 10),
-          Expanded(child: _buildStatCard("3", "Moodboard\nCreated")),
+
+          // --- MOODBOARDS (Live) ---
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _moodboardStream,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return _buildStatCard("0", "Moodboard\nCreated");
+                }
+                final int moodboardCount = snapshot.data!.docs.length;
+                return _buildStatCard(moodboardCount.toString(), "Moodboard\nCreated");
+              }
+            ),
+          ),
         ],
       ),
     );
@@ -687,7 +865,8 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  Widget _buildArticleSection() {
+  // (DailyCheckInSection is unchanged)
+  Widget _buildDailyCheckInSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       child: Card(
@@ -697,15 +876,159 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           width: double.infinity,
           height: 120,
           padding: const EdgeInsets.all(16),
-          child: const Text(
-            "Your article content goes here...",
-            style: TextStyle(color: Colors.grey),
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: _userStream, // Use the stream you already have!
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || !snapshot.data!.exists) {
+                return const Center(child: Text("Loading streak..."));
+              }
+              
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              final int streak = data['currentStreak'] ?? 0;
+              final String lastCheckIn = data['lastCheckInDate'] ?? '';
+              final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+              final bool isCheckedInToday = (lastCheckIn == today);
+              
+              final Color activeColor = isCheckedInToday ? streakColor : Colors.grey.shade600;
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.local_fire_department, // Flame icon
+                        color: activeColor,
+                        size: 48,
+                      ),
+                      Text(
+                        "$streak DAY${streak == 1 ? '' : 'S'}",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: activeColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const VerticalDivider(
+                    thickness: 1,
+                    color: Colors.grey,
+                    width: 40,
+                    indent: 10,
+                    endIndent: 10,
+                  ),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isCheckedInToday)
+                          Row(
+                            children: const [
+                              Icon(Icons.check_circle, color: Colors.green, size: 28),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Check-in Complete!",
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Row(
+                            children: const [
+                              Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 28),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "Check-in today!",
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          isCheckedInToday
+                            ? "Great job! Your streak is safe."
+                            : "Log your mood or do an activity to build your streak.",
+                          style: TextStyle(color: Colors.grey.shade700, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
+  // (TasksSection is unchanged)
+  Widget _buildTasksSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12.0),
+          child: Column(
+            children: [
+              _buildTaskTile(
+                "Complete a Pop Quiz", 
+                "+50 pts", 
+                false
+              ),
+              _buildTaskTile(
+                "Write a journal entry", 
+                "+25 pts", 
+                false
+              ),
+              _buildTaskTile(
+                "Weekly: Take DASS-21", 
+                "+100 pts", 
+                true 
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // (TaskTile helper is unchanged)
+  Widget _buildTaskTile(String title, String reward, bool isCompleted) {
+    return ListTile(
+      leading: Icon(
+        isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+        color: isCompleted ? Colors.green : Colors.grey,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          decoration: isCompleted ? TextDecoration.lineThrough : null,
+          color: isCompleted ? Colors.grey : Colors.black87,
+        ),
+      ),
+      trailing: Text(
+        reward,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: isCompleted ? Colors.grey : statNumberColor,
+        ),
+      ),
+    );
+  }
+
+  // (BottomNav is unchanged)
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       currentIndex: _selectedIndex,

@@ -147,6 +147,9 @@ class _RegisterPageState extends State<RegisterPage> {
           'uid': userCredential.user!.uid,
           'joinedAt': Timestamp.now(),
           'selectedAvatarId': _selectedAvatarId,
+          'currentStreak': 0,
+          'lastCheckInDate': null, // Use null to show they've never checked in
+          'totalPoints': 0,
         });
       }
 

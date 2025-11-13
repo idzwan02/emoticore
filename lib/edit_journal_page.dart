@@ -1,5 +1,6 @@
 // In: lib/edit_journal_page.dart
 import 'dart:io'; // Import for File operations
+import 'package:emoticore/streak_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -194,6 +195,9 @@ class _EditJournalPageState extends State<EditJournalPage> {
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('journal_entries').doc(_documentId).update(entryData);
       }
+
+      await StreakService.updateDailyStreak(user);
+
       if (mounted) {
         Navigator.pop(context); // Pop loading dialog
         Navigator.pop(context); // Pop back to journal list

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'pop_quiz_page.dart'; // To restart
 import 'custom_page_route.dart';
+import 'streak_service.dart'; // Make sure this import is here
 
 class QuizResultsPage extends StatefulWidget {
   final int correctAnswers;
@@ -52,21 +53,27 @@ class _QuizResultsPageState extends State<QuizResultsPage> {
       _totalPointsEarned += perfectBonus;
     }
 
-    final String? uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || _totalPointsEarned == 0) {
+    final User? user = FirebaseAuth.instance.currentUser; // <-- Variable is 'user'
+    if (user == null) {
       setState(() => _isSaving = false);
-      return; // No points to save or not logged in
+      return; // No user to save for
     }
 
     try {
-      // Use FieldValue.increment to safely add points
-      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-      await userRef.update({
-        'totalPoints': FieldValue.increment(_totalPointsEarned),
-      });
+      if (_totalPointsEarned > 0) {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        await userRef.update({
+          'totalPoints': FieldValue.increment(_totalPointsEarned),
+        });
+      }
+
+      // --- THIS IS THE FIX ---
+      // After saving points, update the streak
+      await StreakService.updateDailyStreak(user); // <-- Use 'user' (singular)
+      // --- END FIX ---
+
     } catch (e) {
-      print("Failed to save points: $e");
-      // Don't show an error, just fail silently. The user still sees their score.
+      print("Failed to save points or update streak: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
@@ -100,9 +107,7 @@ class _QuizResultsPageState extends State<QuizResultsPage> {
                 children: [
                   // --- Show Lottie Animation ---
                   _isPerfectScore
-                      // --- 1. PATH FIXED ---
-                      ? Lottie.asset('assets/animations/trophy.json', height: 150) 
-                      // --- 2. PATH FIXED ---
+                      ? Lottie.asset('assets/animations/trophy.json', height: 150)
                       : Lottie.asset('assets/animations/star.json', height: 150),
                   
                   const SizedBox(height: 16.0),
