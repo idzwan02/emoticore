@@ -12,6 +12,7 @@ class EditProfilePage extends StatefulWidget {
   final String currentAvatarId;
   final Map<String, String> availableAvatarAssets;
   final int userTotalPoints; // <-- Receives points from ProfilePage
+  final String currentMantra;
 
   const EditProfilePage({
     super.key,
@@ -20,6 +21,7 @@ class EditProfilePage extends StatefulWidget {
     required this.currentAvatarId,
     required this.availableAvatarAssets,
     required this.userTotalPoints,
+    required this.currentMantra,
   });
 
   @override
@@ -29,6 +31,7 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nameController;
   late final TextEditingController _dateController;
+  late final TextEditingController _mantraController;
   bool _isSaving = false;
   late String _selectedAvatarId;
 
@@ -43,6 +46,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.initState();
     _nameController = TextEditingController(text: widget.currentName);
     _dateController = TextEditingController(text: widget.currentDob);
+    _mantraController = TextEditingController(text: widget.currentMantra);
     _selectedAvatarId = widget.currentAvatarId; 
   }
 
@@ -50,6 +54,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void dispose() {
     _nameController.dispose();
     _dateController.dispose();
+    _mantraController.dispose();
     super.dispose();
   }
 
@@ -185,6 +190,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
         'name': _nameController.text.trim(),
         'dateOfBirth': _dateController.text.trim(),
+        'mantra': _mantraController.text.trim(),
         'selectedAvatarId': _selectedAvatarId, // Save the new avatar
       });
       
@@ -295,6 +301,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   _nameController,
                   "NAME",
                   "Enter your name",
+                  lightGray: lightGray,
+                ),
+                const SizedBox(height: 20),
+
+                _buildTextField(
+                  _mantraController,
+                  "PERSONAL MANTRA",
+                  "Your daily affirmation",
                   lightGray: lightGray,
                 ),
                 const SizedBox(height: 20),

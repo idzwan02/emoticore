@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'edit_profile_page.dart';
 import 'custom_page_route.dart';
+import 'gamification_service.dart'; // <-- 1. IMPORT THIS
 
 class ProfilePage extends StatefulWidget {
   final Stream<DocumentSnapshot>? userStream;
@@ -24,9 +25,76 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // Define theme colors
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
+  bool _isRecalculating = false; // To show loading state for the button
+
+  // --- 2. ADD THIS FUNCTION: Recalculate Points ---
+  Future<void> _recalculatePoints() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isRecalculating = true);
+
+    try {
+      // A. Count Journals (25 pts each)
+      final journalSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('journal_entries')
+          .get();
+      final int journalPoints = journalSnap.docs.length * 25;
+
+      // B. Count DASS-21 (100 pts each)
+      final dassSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('dass21_results')
+          .get();
+      final int dassPoints = dassSnap.docs.length * 100;
+
+      // C. Count Moodboards (50 pts each)
+      final moodboardSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('moodboards')
+          .get();
+      final int moodboardPoints = moodboardSnap.docs.length * 50;
+
+      // D. "Early Access" Bonus (For lost quiz points)
+      const int bonusPoints = 200; 
+
+      final int newTotal = journalPoints + dassPoints + moodboardPoints + bonusPoints;
+
+      // E. Update Database
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'totalPoints': newTotal,
+      });
+
+      // F. Check if this new score unlocks badges
+      await GamificationService.checkBadges(user);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Success! Points synced to: $newTotal"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+    } catch (e) {
+      print("Error syncing points: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to sync points.")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRecalculating = false);
+    }
+  }
+  // --- END FUNCTION ---
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +107,6 @@ class _ProfilePageState extends State<ProfilePage> {
         automaticallyImplyLeading: false,
         elevation: 1.0,
         actions: [
-          // --- EDIT BUTTON (With Data Stream) ---
           StreamBuilder<DocumentSnapshot>(
             stream: widget.userStream,
             builder: (context, snapshot) {
@@ -48,13 +115,15 @@ class _ProfilePageState extends State<ProfilePage> {
               String dob = 'Not set';
               String avatarId = 'default';
               int totalPoints = 0;
+              String mantra = "One day at a time.";
 
               if (snapshot.hasData && snapshot.data!.exists) {
                 final data = snapshot.data!.data() as Map<String, dynamic>;
                 name = data['name'] ?? 'User';
                 dob = data['dateOfBirth'] ?? 'Not set';
                 avatarId = data['selectedAvatarId'] ?? 'default';
-                totalPoints = data['totalPoints'] ?? 0; // <-- Get Points
+                totalPoints = data['totalPoints'] ?? 0;
+                mantra = data['mantra'] ?? "One day at a time.";
               }
 
               return IconButton(
@@ -68,8 +137,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         currentName: name,
                         currentDob: dob,
                         currentAvatarId: avatarId,
+                        currentMantra: mantra,
                         availableAvatarAssets: widget.availableAvatarAssets,
-                        userTotalPoints: totalPoints, // <-- Pass Points to Edit Page
+                        userTotalPoints: totalPoints,
                       ),
                     ),
                   );
@@ -79,7 +149,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
-      // --- BODY CONTENT ---
       body: StreamBuilder<DocumentSnapshot>(
         stream: widget.userStream,
         builder: (context, snapshot) {
@@ -98,6 +167,7 @@ class _ProfilePageState extends State<ProfilePage> {
           final String email = data['email'] ?? 'No email';
           final String dob = data['dateOfBirth'] ?? 'Not set';
           final String currentAvatarId = data['selectedAvatarId'] ?? 'default';
+          final String mantra = data['mantra'] ?? 'One day at a time.';
 
           String joinedDate = 'Unknown';
           Timestamp? joinedTimestamp = data['joinedAt'];
@@ -117,7 +187,6 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 const Spacer(),
                 
-                // Display Avatar (Read-only here)
                 CircleAvatar(
                   radius: 80,
                   backgroundColor: Colors.grey.shade300,
@@ -131,6 +200,24 @@ class _ProfilePageState extends State<ProfilePage> {
                       fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: appPrimaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '"$mantra"',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14, 
+                      fontStyle: FontStyle.italic,
+                      color: appPrimaryColor,
+                      fontWeight: FontWeight.w600
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Column(
                   children: [
                     Text(
@@ -166,7 +253,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const Spacer(),
                 
-                // Styled Log Out Button
+                // --- 3. ADD "Fix Points" BUTTON ---
+                if (_isRecalculating)
+                  const CircularProgressIndicator()
+                else
+                  TextButton(
+                    onPressed: _recalculatePoints,
+                    child: const Text("Sync Missing Points", style: TextStyle(color: Colors.grey)),
+                  ),
+                const SizedBox(height: 10),
+                // --- END ADD ---
+
                 OutlinedButton.icon(
                   icon: Icon(Icons.logout, color: Colors.red.shade700),
                   label: Text(

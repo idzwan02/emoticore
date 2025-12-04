@@ -1,29 +1,28 @@
 // In: lib/edit_journal_page.dart
-import 'dart:io'; // Import for File operations
-import 'package:emoticore/streak_service.dart';
+import 'dart:io'; 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // Import Firebase Storage
-import 'package:image_picker/image_picker.dart'; // Import Image Picker
+import 'package:firebase_storage/firebase_storage.dart'; 
+import 'package:image_picker/image_picker.dart'; 
 import 'package:lottie/lottie.dart';
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // For displaying existing images
+import 'package:cached_network_image/cached_network_image.dart'; 
+// --- IMPORTS FOR GAMIFICATION ---
+import 'streak_service.dart';
+import 'gamification_service.dart';
 
 class EditJournalPage extends StatefulWidget {
   final QueryDocumentSnapshot? document; // Null if new entry
-  
-  // --- 1. ADD THESE NEW PARAMETERS ---
   final String? prefilledTitle;
   final String? prefilledContent;
 
   const EditJournalPage({
     super.key, 
     this.document,
-    this.prefilledTitle, // Add to constructor
-    this.prefilledContent, // Add to constructor
+    this.prefilledTitle,
+    this.prefilledContent,
   });
-  // --- END ADD ---
 
   @override
   State<EditJournalPage> createState() => _EditJournalPageState();
@@ -40,6 +39,8 @@ class _EditJournalPageState extends State<EditJournalPage> {
   String? _existingImageUrl; 
   bool _imageWasRemoved = false; 
   final ImagePicker _picker = ImagePicker(); 
+  
+  // Theme Colors
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
   static const Color cardBackgroundColor = Color(0xFFFCFCFC);
@@ -47,8 +48,6 @@ class _EditJournalPageState extends State<EditJournalPage> {
   @override
   void initState() {
     super.initState();
-    
-    // --- 2. UPDATE THIS LOGIC ---
     if (widget.document != null) {
       // Editing an existing entry
       final data = widget.document!.data() as Map<String, dynamic>;
@@ -59,11 +58,10 @@ class _EditJournalPageState extends State<EditJournalPage> {
       _isBookmarked = data['isBookmarked'] ?? false;
       _existingImageUrl = data['imageUrl']; 
     } else {
-      // This is a new entry, check for pre-filled text
+      // New entry (possibly from Daily Check-in)
       _titleController.text = widget.prefilledTitle ?? '';
       _contentController.text = widget.prefilledContent ?? '';
     }
-    // --- END UPDATE ---
   }
 
   @override
@@ -72,53 +70,26 @@ class _EditJournalPageState extends State<EditJournalPage> {
     _contentController.dispose();
     super.dispose();
   }
-  
-  // ... (rest of the file is unchanged) ...
-  // (Function _pickImage, _showImageSourceDialog, _saveEntry, etc...)
-  // ... (build method is unchanged) ...
-  
-  // --- NO OTHER CHANGES ARE NEEDED IN THIS FILE ---
-  
-  // (Keep _deleteEntry, _showLoadingDialog, _showErrorDialog as they were)
-  Future<void> _deleteEntry() async {
-    if (_documentId == null) return;
-    bool? deleteConfirmed = await showDialog<bool>( context: context, builder: (context) => AlertDialog( title: const Text('Delete Entry?'), content: const Text('Are you sure you want to delete this journal entry? This cannot be undone.'), actions: [ TextButton( onPressed: () => Navigator.pop(context, false), child: const Text('Cancel'), ), TextButton( onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete'), ), ], ), );
-    if (deleteConfirmed != true) return;
-    setState(() => _isSaving = true); _showLoadingDialog();
-    User? user = FirebaseAuth.instance.currentUser; if (user == null) return;
-    try {
-      // TODO: Add logic here to delete the image from Firebase Storage if it exists
-      await FirebaseFirestore.instance .collection('users') .doc(user.uid) .collection('journal_entries') .doc(_documentId) .delete();
-      if (mounted) { Navigator.pop(context); Navigator.pop(context); }
-    } catch (e) { if (mounted) Navigator.pop(context); _showErrorDialog("Error deleting entry: ${e.toString()}");
-    } finally { if (mounted) setState(() => _isSaving = false); }
-  }
-  void _showLoadingDialog() { showDialog( context: context, barrierDismissible: false, builder: (context) => Center( child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150), ), );
-  }
-  void _showErrorDialog(String message) { if (!mounted) return; showDialog( context: context, builder: (context) => AlertDialog( title: const Text("Error"), content: Text(message), actions: [ TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")), ], ), );
-  }
-  
-  // (This function remains unchanged)
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        maxWidth: 1024, // Resize for faster uploads and less storage
+        maxWidth: 1024, 
         imageQuality: 85,
       );
       if (pickedFile != null) {
         setState(() {
           _pickedImageFile = File(pickedFile.path);
-          _imageWasRemoved = false; // A new image was picked, so don't remove
-          _existingImageUrl = null; // Clear existing image to show the new one
+          _imageWasRemoved = false; 
+          _existingImageUrl = null; 
         });
       }
     } catch (e) {
       _showErrorDialog("Error picking image: ${e.toString()}");
     }
   }
-  
-  // (This function remains unchanged)
+
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
@@ -146,8 +117,64 @@ class _EditJournalPageState extends State<EditJournalPage> {
       ),
     );
   }
-  
-  // (This function remains unchanged)
+
+  Future<void> _deleteEntry() async {
+    if (_documentId == null) return;
+    bool? deleteConfirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Entry?'),
+        content: const Text('Are you sure you want to delete this journal entry? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (deleteConfirmed != true) return;
+
+    setState(() => _isSaving = true);
+    _showLoadingDialog();
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // If there was an image, we should ideally delete it from Storage here too
+      if (_existingImageUrl != null) {
+        try {
+          await FirebaseStorage.instance.refFromURL(_existingImageUrl!).delete();
+        } catch (e) {
+          print("Error deleting image file: $e");
+        }
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('journal_entries')
+          .doc(_documentId)
+          .delete();
+
+      if (mounted) {
+        Navigator.pop(context); // Pop loading
+        Navigator.pop(context); // Pop page
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      _showErrorDialog("Error deleting entry: ${e.toString()}");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
   Future<void> _saveEntry() async {
     if (_titleController.text.isEmpty || _contentController.text.isEmpty) {
       _showErrorDialog("Please fill out both the title and content.");
@@ -155,28 +182,33 @@ class _EditJournalPageState extends State<EditJournalPage> {
     }
     setState(() => _isSaving = true);
     _showLoadingDialog();
+    
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (mounted) Navigator.pop(context); // Pop loading
+      if (mounted) Navigator.pop(context); 
       _showErrorDialog("You must be logged in to save an entry.");
       return;
     }
+    
     try {
-      String? finalImageUrl = _existingImageUrl; // Start with the image we already have
+      String? finalImageUrl = _existingImageUrl; 
+      
+      // Upload new image if picked
       if (_pickedImageFile != null) {
         String fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
         Reference storageRef = FirebaseStorage.instance
             .ref()
-            .child('journal_images') // Folder for all journal images
-            .child(user.uid) // Subfolder for this user
-            .child(fileName); // The file
+            .child('journal_images')
+            .child(user.uid)
+            .child(fileName);
         UploadTask uploadTask = storageRef.putFile(_pickedImageFile!);
         TaskSnapshot snapshot = await uploadTask;
-        finalImageUrl = await snapshot.ref.getDownloadURL(); // Get the public URL
+        finalImageUrl = await snapshot.ref.getDownloadURL(); 
       }
       else if (_imageWasRemoved) {
         finalImageUrl = null;
       }
+
       final entryData = {
         'title': _titleController.text,
         'content': _contentController.text,
@@ -184,18 +216,24 @@ class _EditJournalPageState extends State<EditJournalPage> {
         'userId': user.uid,
         'isImportant': _isImportant,
         'isBookmarked': _isBookmarked,
-        'imageUrl': finalImageUrl, // Save the final URL (or null)
+        'imageUrl': finalImageUrl, 
       };
+
       if (_documentId == null) {
-        // New Entry
+        // --- NEW ENTRY ---
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('journal_entries').add(entryData);
+            
+        // --- GAMIFICATION: Award 25 Points ---
+        await GamificationService.awardPoints(user, 25);
+        
       } else {
-        // Existing Entry
+        // --- EXISTING ENTRY ---
         await FirebaseFirestore.instance.collection('users').doc(user.uid)
             .collection('journal_entries').doc(_documentId).update(entryData);
       }
 
+      // --- STREAK: Update Streak ---
       await StreakService.updateDailyStreak(user);
 
       if (mounted) {
@@ -203,33 +241,94 @@ class _EditJournalPageState extends State<EditJournalPage> {
         Navigator.pop(context); // Pop back to journal list
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context); // Pop loading dialog
+      if (mounted) Navigator.pop(context); 
       _showErrorDialog("Error saving entry: ${e.toString()}");
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  // (This build method remains unchanged)
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150),
+      ),
+    );
+  }
+
+  void _showErrorDialog(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Error"),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     String formattedDate = '';
     if (widget.document != null) {
       final data = widget.document!.data() as Map<String, dynamic>;
       Timestamp? ts = data['timestamp'];
-      if (ts != null) { formattedDate = DateFormat('MMMM d, yyyy  h:mm a').format(ts.toDate()); }
+      if (ts != null) {
+        formattedDate = DateFormat('MMMM d, yyyy  h:mm a').format(ts.toDate());
+      }
     }
+
     return Scaffold(
       backgroundColor: appBackgroundColor,
       appBar: AppBar(
         backgroundColor: appPrimaryColor,
-        leading: IconButton( icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context), ),
-        title: Text( _documentId == null ? 'New Entry' : 'Edit Entry', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), ),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _documentId == null ? 'New Entry' : 'Edit Entry',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         actions: [
-          IconButton( icon: Icon( _isImportant ? Icons.star_rounded : Icons.star_border_rounded, color: _isImportant ? Colors.yellow.shade600 : Colors.white, ), tooltip: 'Important', onPressed: () { setState(() { _isImportant = !_isImportant; }); }, ),
-          IconButton( icon: Icon( _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded, color: _isBookmarked ? Colors.white : Colors.white.withOpacity(0.7), ), tooltip: 'Bookmark', onPressed: () { setState(() { _isBookmarked = !_isBookmarked; }); }, ),
-          if (_documentId != null) IconButton( icon: const Icon(Icons.delete_outline, color: Colors.white), onPressed: _isSaving ? null : _deleteEntry, ),
-          IconButton( icon: const Icon(Icons.check, color: Colors.white, size: 30), onPressed: _isSaving ? null : _saveEntry, ),
+          IconButton(
+            icon: Icon(
+              _isImportant ? Icons.star_rounded : Icons.star_border_rounded,
+              color: _isImportant ? Colors.yellow.shade600 : Colors.white,
+            ),
+            tooltip: 'Important',
+            onPressed: () {
+              setState(() {
+                _isImportant = !_isImportant;
+              });
+            },
+          ),
+          IconButton(
+            icon: Icon(
+              _isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              color: _isBookmarked ? Colors.white : Colors.white.withOpacity(0.7),
+            ),
+            tooltip: 'Bookmark',
+            onPressed: () {
+              setState(() {
+                _isBookmarked = !_isBookmarked;
+              });
+            },
+          ),
+          if (_documentId != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              onPressed: _isSaving ? null : _deleteEntry,
+            ),
+          IconButton(
+            icon: const Icon(Icons.check, color: Colors.white, size: 30),
+            onPressed: _isSaving ? null : _saveEntry,
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -259,7 +358,10 @@ class _EditJournalPageState extends State<EditJournalPage> {
                 if (formattedDate.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4.0, bottom: 12.0),
-                    child: Text( formattedDate, style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic), ),
+                    child: Text(
+                      formattedDate,
+                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                    ),
                   ),
                 if (formattedDate.isEmpty) const SizedBox(height: 12),
                 const Divider(),
@@ -283,9 +385,9 @@ class _EditJournalPageState extends State<EditJournalPage> {
     );
   }
 
-  // (This helper widget remains unchanged)
   Widget _buildImageDisplay() {
     bool showImage = (_pickedImageFile != null || (_existingImageUrl != null && !_imageWasRemoved));
+    
     if (!showImage) {
       return Center(
         child: TextButton.icon(

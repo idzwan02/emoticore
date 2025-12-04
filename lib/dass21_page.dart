@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'gamification_service.dart';
 
 class Dass21Page extends StatefulWidget {
   const Dass21Page({super.key});
@@ -472,6 +473,8 @@ class _Dass21PageState extends State<Dass21Page> {
           'lastDass21CompletionDate',
           DateTime.now().toIso8601String(),
         );
+
+        await GamificationService.awardPoints(currentUser, 100);
 
         if (Navigator.canPop(context)) Navigator.pop(context); // Pop loading
         // Show results dialog

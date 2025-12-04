@@ -12,13 +12,15 @@ import 'auth_gate.dart';
 import 'activities_page.dart';
 import 'custom_page_route.dart';
 import 'profile_page.dart';
-import 'streak_service.dart';
-import 'gamification_service.dart'; // <-- IMPORT NEW SERVICE
-import 'gamification_data.dart'; // <-- IMPORT NEW DATA
+import 'streak_service.dart'; 
+import 'gamification_service.dart';
+import 'gamification_data.dart'; 
 
 class EmoticoreMainPage extends StatefulWidget {
   final User user;
+
   const EmoticoreMainPage({super.key, required this.user});
+
   @override
   State<EmoticoreMainPage> createState() => _EmoticoreMainPageState();
 }
@@ -26,13 +28,12 @@ class EmoticoreMainPage extends StatefulWidget {
 class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   int _selectedIndex = 0;
   bool _isLoadingData = true;
-  bool _isSavingAvatar = false;
   Stream<QuerySnapshot>? _dassStream;
-  Stream<QuerySnapshot>? _moodboardStream;
+  Stream<QuerySnapshot>? _journalStream;
   Stream<DocumentSnapshot>? _userStream;
   String _currentMoodId = 'neutral';
 
-  // (Mood Maps Unchanged)
+  // --- Maps for Mood Data ---
   final Map<String, String> _moodEmojis = {
     'happy': ' 😊 ', 'excited': ' 😃 ', 'neutral': ' 😐 ', 'anxious': ' 😟 ', 'sad': ' 😔 ',
   };
@@ -40,7 +41,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     'happy': 'Happy', 'excited': 'Excited', 'neutral': 'Neutral', 'anxious': 'Anxious', 'sad': 'Sad',
   };
 
-  // (Colors Unchanged)
+  // --- Color Definitions ---
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
   static const Color statNumberColor = Color(0xFF4A69FF);
@@ -51,22 +52,31 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   static const Color stressBarColor = Color(0xFF26C6DA);
   static const Color streakColor = Color(0xFFF08A00);
 
-  // --- AVATAR MAP REMOVED (Imported from gamification_data.dart) ---
-
   @override
   void initState() {
     super.initState();
     _initializeDashboard();
   }
 
+  // Reload if user changes (important for multi-user)
+  @override
+  void didUpdateWidget(EmoticoreMainPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.uid != widget.user.uid) {
+      _initializeDashboard();
+    }
+  }
+
   Future<void> _initializeDashboard() async {
     if (!mounted) return;
     setState(() => _isLoadingData = true);
+
     try {
       User user = widget.user;
       await _createUserDataIfMissing(user);
       _initializeStreams();
       await _loadMoodData();
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _triggerDailyMoodCheck();
       });
@@ -77,34 +87,91 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
-  // (Daily Mood Check Unchanged)
-  Future<void> _triggerDailyMoodCheck() async { /* ... */ }
-  Future<void> _showMoodCheckDialog() async { /* ... */ }
-
-  // (Save Mood Updated to check badges)
-  Future<void> _saveMood(String moodId) async {
-    if (mounted) setState(() => _currentMoodId = moodId);
+  // --- Daily Mood Check ---
+  Future<void> _triggerDailyMoodCheck() async {
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) return;
+    
     final prefs = await SharedPreferences.getInstance();
     final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    await prefs.setString('lastMoodCheckDate', todayDate);
+    final String key = 'lastMoodCheckDate_${widget.user.uid}'; 
+    final String? lastCheckDate = prefs.getString(key);
     
+    if (lastCheckDate != todayDate) {
+      if (mounted) _showMoodCheckDialog();
+    }
+  }
+
+  Future<void> _showMoodCheckDialog() async {
+    if (!mounted) return;
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('How are you feeling today?'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+          content: Container(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 16.0,
+                runSpacing: 16.0,
+                children: _moodEmojis.keys.map((moodId) {
+                  return GestureDetector(
+                    onTap: () {
+                      _saveMood(moodId);
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: SizedBox(
+                      width: 70,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_moodEmojis[moodId]!, style: const TextStyle(fontSize: 36)),
+                          const SizedBox(height: 8),
+                          Text(_moodTexts[moodId]!, style: const TextStyle(fontSize: 12), textAlign: TextAlign.center),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _saveMood(String moodId) async {
+    if (mounted) setState(() => _currentMoodId = moodId);
+    
+    final prefs = await SharedPreferences.getInstance();
+    final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
     User user = widget.user; 
+    
+    final String key = 'lastMoodCheckDate_${user.uid}';
+    await prefs.setString(key, todayDate);
+    
     try {
+      // 1. Update Mood
       await FirebaseFirestore.instance.collection('users').doc(user.uid)
           .update({'currentMood': moodId, 'lastMoodUpdate': Timestamp.now()});
           
+      // 2. Update Streak AND Points (This is now handled inside StreakService)
       await StreakService.updateDailyStreak(user);
-      
-      // --- ADDED: Check badges after streak update ---
+
+      // 3. Check Badges
       await GamificationService.checkBadges(user);
-      // --- END ---
-      
+          
     } catch (e) {
       print("Error saving mood: $e");
     }
   }
 
-  // (Create User Data Updated to include badge list)
+  // --- Data Loading ---
   Future<void> _createUserDataIfMissing(User user) async {
     final userDocRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
     final userDoc = await userDocRef.get();
@@ -120,8 +187,9 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           'dateOfBirth': 'Not set',
           'totalPoints': 0,
           'currentStreak': 0,
+          'longestStreak': 0, // Initialize new field
           'lastCheckInDate': null,
-          'unlockedBadges': [], // --- ADDED THIS ---
+          'unlockedBadges': [], 
         });
       } catch (e) {
         print("Error creating user document: $e");
@@ -129,37 +197,54 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
-  // (Load Mood Data Unchanged)
-  Future<void> _loadMoodData() async { /* ... */ }
+  Future<void> _loadMoodData() async {
+    String finalMoodId = 'neutral';
+    try {
+      User user = widget.user;
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
-  // (Initialize Streams Unchanged)
+      if (userDoc.exists) {
+        Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+        Timestamp? lastUpdate = data['lastMoodUpdate'];
+        if (lastUpdate != null) {
+          final String todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+          final String lastUpdateDate = DateFormat('yyyy-MM-dd').format(lastUpdate.toDate());
+          if (todayDate == lastUpdateDate) {
+            finalMoodId = data['currentMood'] ?? 'neutral';
+            if (!_moodEmojis.containsKey(finalMoodId)) finalMoodId = 'neutral';
+          }
+        }
+      }
+    } catch (e) {
+      print("Error loading mood data: $e");
+    }
+    if (mounted) setState(() => _currentMoodId = finalMoodId);
+  }
+
   void _initializeStreams() {
     User user = widget.user;
     _dassStream = FirebaseFirestore.instance.collection('users').doc(user.uid).collection('dass21_results').orderBy('timestamp', descending: true).limit(1).snapshots();
-    _moodboardStream = FirebaseFirestore.instance.collection('users').doc(user.uid).collection('moodboards').snapshots();
+    _journalStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('journal_entries')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .snapshots();
     _userStream = FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots();
   }
 
-  // (Sign Out Unchanged)
-  Future<void> _signOut() async { /* ... */ }
-
-  // (Update Avatar Unchanged - Note: Uses masterAvatarAssets now)
-  Future<void> _updateSelectedAvatarId(String newAvatarId) async { 
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null || !masterAvatarAssets.containsKey(newAvatarId)) return; // Use master map
-    setState(() => _isSavingAvatar = true); 
+  Future<void> _signOut() async {
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {'selectedAvatarId': newAvatarId},
-      );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Avatar updated!'), backgroundColor: Colors.green));
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(context, FadeRoute(page: const AuthGate()), (route) => false);
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update avatar.'), backgroundColor: Colors.red));
-    } finally {
-      if (mounted) setState(() => _isSavingAvatar = false); 
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
@@ -168,7 +253,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       ProfilePage(
         onChangeAccount: _signOut,
         userStream: _userStream, 
-        // --- Use Imported Master Map ---
         availableAvatarAssets: masterAvatarAssets, 
       ),
     ];
@@ -179,20 +263,27 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
   
-  // (Build Home Page Unchanged)
-  Widget _buildHomePage() { /* ... Same as before ... */
+  Widget _buildHomePage() {
     return Scaffold(
       key: const ValueKey<String>('home_page'),
       backgroundColor: appBackgroundColor,
       body: _isLoadingData
           ? Center(child: Lottie.asset('assets/animations/loading.json', width: 150, height: 150))
-          : SingleChildScrollView(
+          : RefreshIndicator(
+              // --- THIS ADDS PULL-TO-REFRESH ---
+              onRefresh: _initializeDashboard, 
+              color: appPrimaryColor,
+              backgroundColor: Colors.white,
+              child: SingleChildScrollView(
+                // We add physics to ensure it's always scrollable, 
+                // otherwise refresh won't work on short screens.
+                physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
                   _buildSectionTitle("Your Badges"),
-                  _buildBadgesSection(), // <-- This is updated below
+                  _buildBadgesSection(),
                   _buildSectionTitle("Daily Check-in"),
                   _buildDailyCheckInSection(),
                   _buildSectionTitle("Today's Tasks"),
@@ -200,15 +291,16 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                   _buildSectionTitle("Your Statistics"),
                   _buildStatisticsSection(),
                   const SizedBox(height: 20),
-                  _buildStatsCardsRow(),
+                  _buildStatsCardsRow(), // Updated
                   const SizedBox(height: 30),
                 ],
               ),
             ),
+            ),
     );
   }
 
-  // (Header Unchanged - Uses masterAvatarAssets)
+  // (Header Unchanged)
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
@@ -229,7 +321,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                   avatarAssetId = fetchedId;
                 }
               }
-              // Use master map
               String avatarAssetPath = masterAvatarAssets[avatarAssetId] ?? masterAvatarAssets['default']!;
               
               return Row(
@@ -253,7 +344,13 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  // --- UPDATED: Dynamic Badges Section ---
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
+      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+    );
+  }
+
   Widget _buildBadgesSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -271,7 +368,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
               }
               
               final data = snapshot.data!.data() as Map<String, dynamic>;
-              // Get list of unlocked IDs
               final List<String> unlockedIds = List<String>.from(data['unlockedBadges'] ?? []);
 
               if (unlockedIds.isEmpty) {
@@ -288,11 +384,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                 runSpacing: 10.0,
                 alignment: WrapAlignment.center,
                 children: unlockedIds.map((id) {
-                  // Find the badge data from our master list
-                  final badge = allBadges.firstWhere(
-                    (b) => b.id == id, 
-                    orElse: () => allBadges[0] // Fallback
-                  );
+                  final badge = allBadges.firstWhere((b) => b.id == id, orElse: () => allBadges[0]);
                   return Tooltip(
                     message: badge.description,
                     triggerMode: TooltipTriggerMode.tap,
@@ -314,18 +406,130 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  // (Section Title, Stats, Bar Chart, Tasks, etc. are UNCHANGED)
-  Widget _buildSectionTitle(String title) { return Padding(padding: const EdgeInsets.fromLTRB(20, 25, 20, 10), child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87))); }
-  Widget _buildStatisticsSection() { /* ... Same as previous version ... */ return Container(); /* Placeholder to keep response short */ } 
-  // IMPORTANT: You should keep the _buildStatisticsSection from the previous full code. I'm omitting it here purely to save space, but it hasn't changed.
-  
-  // (Stats Cards - Logic remains the same, just removed the placeholder)
+  Widget _buildBadge(Color color) {
+    return Icon(Icons.emoji_events, color: color, size: 40);
+  }
+
+  Widget _buildStatisticsSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 10.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Your DASS-21 Scores"),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 120,
+                            child: StreamBuilder<QuerySnapshot>(
+                              stream: _dassStream,
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return Center(child: Lottie.asset('assets/animations/loading.json', width: 100, height: 100));
+                                }
+                                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                                  return _buildBarChart(0, 0, 0);
+                                }
+                                Map<String, dynamic>? latestData = snapshot.data!.docs.first.data() as Map<String, dynamic>?;
+                                double depression = (latestData?['depressionScore'] as num?)?.toDouble() ?? 0;
+                                double anxiety = (latestData?['anxietyScore'] as num?)?.toDouble() ?? 0;
+                                double stress = (latestData?['stressScore'] as num?)?.toDouble() ?? 0;
+                                return _buildBarChart(depression, anxiety, stress);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const VerticalDivider(thickness: 1, color: Colors.grey, width: 20),
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Your Mood"),
+                          const SizedBox(height: 10),
+                          Text(_moodEmojis[_currentMoodId] ?? ' 😐 ', style: const TextStyle(fontSize: 60)),
+                          const SizedBox(height: 5),
+                          Text(_moodTexts[_currentMoodId] ?? 'Neutral', style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarChart(double depressionScore, double anxietyScore, double stressScore) {
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: 42,
+        barTouchData: BarTouchData(enabled: false),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true, interval: 7, reservedSize: 28,
+              getTitlesWidget: (value, meta) {
+                if (value % 7 == 0 && value <= 42) return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
+                return const Text('');
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true, reservedSize: 30,
+              getTitlesWidget: (value, meta) {
+                String text;
+                switch (value.toInt()) {
+                  case 0: text = 'Stress'; break;
+                  case 1: text = 'Anxiety'; break;
+                  case 2: text = 'Depression'; break;
+                  default: text = ''; break;
+                }
+                return SideTitleWidget(meta: meta, child: Container(width: 70, alignment: Alignment.center, child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11), overflow: TextOverflow.ellipsis)));
+              },
+            ),
+          ),
+        ),
+        gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: 7, getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.shade300, strokeWidth: 0.8, dashArray: [5, 5])),
+        borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.shade400, width: 1)),
+        barGroups: [
+          BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: stressScore, color: stressBarColor, width: 12, borderRadius: BorderRadius.circular(4))]),
+          BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: anxietyScore, color: anxietyBarColor, width: 12, borderRadius: BorderRadius.circular(4))]),
+          BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: depressionScore, color: depressionBarColor, width: 12, borderRadius: BorderRadius.circular(4))]),
+        ],
+      ),
+    );
+  }
+
+  // --- 4. UPDATED STATS ROW ---
   Widget _buildStatsCardsRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
       child: Row(
         children: [
-          // --- UPDATED: Live Badge Count ---
+          // Badges
           Expanded(
             child: StreamBuilder<DocumentSnapshot>(
               stream: _userStream,
@@ -341,6 +545,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
             ),
           ),
           const SizedBox(width: 10),
+          // Total Points
           Expanded(
             child: StreamBuilder<DocumentSnapshot>(
               stream: _userStream,
@@ -352,12 +557,14 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
             ),
           ),
           const SizedBox(width: 10),
+          // --- UPDATED: Longest Streak ---
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _moodboardStream,
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: _userStream,
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return _buildStatCard("0", "Moodboard\nCreated");
-                return _buildStatCard(snapshot.data!.docs.length.toString(), "Moodboard\nCreated");
+                if (!snapshot.hasData || !snapshot.data!.exists) return _buildStatCard("0", "Longest\nStreak");
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                return _buildStatCard((data['longestStreak'] ?? 0).toString(), "Longest\nStreak");
               }
             ),
           ),
@@ -374,31 +581,15 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
         child: Column(
           children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: statNumberColor,
-              ),
-            ),
+            Text(value, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: statNumberColor)),
             const SizedBox(height: 5),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black54,
-                height: 1.3,
-              ),
-            ),
+            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Colors.black54, height: 1.3)),
           ],
         ),
       ),
     );
   }
 
-  // (DailyCheckInSection is unchanged)
   Widget _buildDailyCheckInSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -412,17 +603,13 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           child: StreamBuilder<DocumentSnapshot>(
             stream: _userStream, 
             builder: (context, snapshot) {
-              if (!snapshot.hasData || !snapshot.data!.exists) {
-                return const Center(child: Text("Loading streak..."));
-              }
+              if (!snapshot.hasData || !snapshot.data!.exists) return const Center(child: Text("Loading streak..."));
               
               final data = snapshot.data!.data() as Map<String, dynamic>;
               final int streak = data['currentStreak'] ?? 0;
               final String lastCheckIn = data['lastCheckInDate'] ?? '';
               final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
               final bool isCheckedInToday = (lastCheckIn == today);
-              
               final Color activeColor = isCheckedInToday ? streakColor : Colors.grey.shade600;
 
               return Row(
@@ -431,66 +618,22 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.local_fire_department, // Flame icon
-                        color: activeColor,
-                        size: 48,
-                      ),
-                      Text(
-                        "$streak DAY${streak == 1 ? '' : 'S'}",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: activeColor,
-                        ),
-                      ),
+                      Icon(Icons.local_fire_department, color: activeColor, size: 48),
+                      Text("$streak DAY${streak == 1 ? '' : 'S'}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: activeColor)),
                     ],
                   ),
-                  const VerticalDivider(
-                    thickness: 1,
-                    color: Colors.grey,
-                    width: 40,
-                    indent: 10,
-                    endIndent: 10,
-                  ),
+                  const VerticalDivider(thickness: 1, color: Colors.grey, width: 40, indent: 10, endIndent: 10),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (isCheckedInToday)
-                          Row(
-                            children: const [
-                              Icon(Icons.check_circle, color: Colors.green, size: 28),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  "Check-in Complete!",
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          )
-                        else
-                          Row(
-                            children: const [
-                              Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 28),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  "Check-in today!",
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
+                          Row(children: const [Icon(Icons.check_circle, color: Colors.green, size: 28), SizedBox(width: 10), Expanded(child: Text("Check-in Complete!", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))]),
+                        if (!isCheckedInToday)
+                          Row(children: const [Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 28), SizedBox(width: 10), Expanded(child: Text("Check-in today!", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)))]),
                         const SizedBox(height: 8),
-                        Text(
-                          isCheckedInToday
-                            ? "Great job! Your streak is safe."
-                            : "Log your mood or do an activity to build your streak.",
-                          style: TextStyle(color: Colors.grey.shade700, height: 1.4),
-                        ),
+                        Text(isCheckedInToday ? "Great job! Your streak is safe." : "Log your mood or do an activity to build your streak.", style: TextStyle(color: Colors.grey.shade700, height: 1.4)),
                       ],
                     ),
                   ),
@@ -503,7 +646,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  // --- UPDATED WIDGET FOR TASKS ---
   Widget _buildTasksSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -514,14 +656,27 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           padding: const EdgeInsets.symmetric(vertical: 12.0),
           child: Column(
             children: [
-              // Task 1: Pop Quiz (Static for now, but encouraging)
-              _buildTaskTile(
-                "Complete a Pop Quiz", 
-                "+50 pts", 
-                false
+              _buildTaskTile("Complete a Pop Quiz", "+50 pts", false),
+
+              StreamBuilder<QuerySnapshot>(
+                stream: _journalStream,
+                builder: (context, snapshot) {
+                  bool isDone = false;
+                  if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                    final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                    final Timestamp? timestamp = data['timestamp'];
+                    if (timestamp != null) {
+                      final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                      final String entryDate = DateFormat('yyyy-MM-dd').format(timestamp.toDate());
+                      if (today == entryDate) {
+                        isDone = true;
+                      }
+                    }
+                  }
+                  return _buildTaskTile("Write a journal entry", "+25 pts", isDone);
+                }
               ),
               
-              // Task 2: Journal / Check-in (Dynamic via User Stream)
               StreamBuilder<DocumentSnapshot>(
                 stream: _userStream,
                 builder: (context, snapshot) {
@@ -530,48 +685,28 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                     final data = snapshot.data!.data() as Map<String, dynamic>;
                     final String lastCheckIn = data['lastCheckInDate'] ?? '';
                     final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-                    if (lastCheckIn == today) {
-                      isDone = true;
-                    }
+                    if (lastCheckIn == today) isDone = true;
                   }
-                  return _buildTaskTile(
-                    "Daily Check-in", 
-                    "+25 pts", 
-                    isDone
-                  );
+                  return _buildTaskTile("Daily Check-in", "+25 pts", isDone);
                 }
               ),
 
-              // Task 3: DASS-21 (Dynamic via DASS Stream)
-              // --- THIS IS THE CRITICAL FIX ---
               StreamBuilder<QuerySnapshot>(
                 stream: _dassStream,
                 builder: (context, snapshot) {
                   bool isDone = false;
-                  
                   if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
                     final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
                     final Timestamp? timestamp = data['timestamp'];
-                    
                     if (timestamp != null) {
                       final DateTime lastDate = timestamp.toDate();
                       final int diff = DateTime.now().difference(lastDate).inDays;
-                      
-                      // If it's been LESS than 7 days, it's considered "Done" for the week.
-                      if (diff < 7) {
-                        isDone = true;
-                      }
+                      if (diff < 7) isDone = true; 
                     }
                   }
-                  
-                  return _buildTaskTile(
-                    "Weekly: Take DASS-21", 
-                    "+100 pts", 
-                    isDone
-                  );
+                  return _buildTaskTile("Weekly: Take DASS-21", "+100 pts", isDone);
                 }
               ),
-              // --- END FIX ---
             ],
           ),
         ),
@@ -579,49 +714,25 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     );
   }
 
-  // Helper for the new tasks section
   Widget _buildTaskTile(String title, String reward, bool isCompleted) {
     return ListTile(
-      leading: Icon(
-        isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-        color: isCompleted ? Colors.green : Colors.grey,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          decoration: isCompleted ? TextDecoration.lineThrough : null,
-          color: isCompleted ? Colors.grey : Colors.black87,
-        ),
-      ),
-      trailing: Text(
-        reward,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: isCompleted ? Colors.grey : statNumberColor,
-        ),
-      ),
+      leading: Icon(isCompleted ? Icons.check_circle : Icons.radio_button_unchecked, color: isCompleted ? Colors.green : Colors.grey),
+      title: Text(title, style: TextStyle(fontWeight: FontWeight.w500, decoration: isCompleted ? TextDecoration.lineThrough : null, color: isCompleted ? Colors.grey : Colors.black87)),
+      trailing: Text(reward, style: TextStyle(fontWeight: FontWeight.bold, color: isCompleted ? Colors.grey : statNumberColor)),
     );
   }
 
   Widget _buildBottomNav() {
     return BottomNavigationBar(
       currentIndex: _selectedIndex,
-      onTap: (index) {
-        setState(() {
-          _selectedIndex = index;
-        });
-      },
+      onTap: (index) { setState(() { _selectedIndex = index; }); },
       backgroundColor: appPrimaryColor,
       selectedItemColor: Colors.white,
       unselectedItemColor: Colors.white.withOpacity(0.6),
       type: BottomNavigationBarType.fixed,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.list_alt),
-          label: "Activities",
-        ),
+        BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: "Activities"),
         BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
       ],
     );

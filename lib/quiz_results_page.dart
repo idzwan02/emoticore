@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
-import 'pop_quiz_page.dart'; // To restart
+import 'pop_quiz_page.dart'; 
 import 'custom_page_route.dart';
-import 'streak_service.dart'; // Make sure this import is here
+import 'streak_service.dart'; 
+import 'gamification_service.dart'; // <-- 1. IMPORT THIS
 
 class QuizResultsPage extends StatefulWidget {
   final int correctAnswers;
@@ -53,27 +54,25 @@ class _QuizResultsPageState extends State<QuizResultsPage> {
       _totalPointsEarned += perfectBonus;
     }
 
-    final User? user = FirebaseAuth.instance.currentUser; // <-- Variable is 'user'
+    final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       setState(() => _isSaving = false);
-      return; // No user to save for
+      return; 
     }
 
     try {
+      // --- 2. UPDATE: Use GamificationService ---
       if (_totalPointsEarned > 0) {
-        final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-        await userRef.update({
-          'totalPoints': FieldValue.increment(_totalPointsEarned),
-        });
+        // This awards points AND checks for badges
+        await GamificationService.awardPoints(user, _totalPointsEarned);
       }
 
-      // --- THIS IS THE FIX ---
-      // After saving points, update the streak
-      await StreakService.updateDailyStreak(user); // <-- Use 'user' (singular)
-      // --- END FIX ---
+      // Keep streak alive (even if they didn't get points, taking a quiz counts as activity)
+      await StreakService.updateDailyStreak(user);
+      // --- END UPDATE ---
 
     } catch (e) {
-      print("Failed to save points or update streak: $e");
+      print("Failed to save points: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

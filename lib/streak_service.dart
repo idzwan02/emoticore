@@ -5,50 +5,51 @@ import 'package:intl/intl.dart';
 
 class StreakService {
   
-  // This function can be called from anywhere in the app
   static Future<void> updateDailyStreak(User? user) async {
-    if (user == null) return; // Not logged in
+    if (user == null) return;
 
     try {
       final userDocRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
       final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-      // Get the user's current data
       final doc = await userDocRef.get();
-      if (!doc.exists) return; // User doc doesn't exist yet
+      if (!doc.exists) return;
 
       final data = doc.data() as Map<String, dynamic>;
       final String lastCheckIn = data['lastCheckInDate'] ?? '';
       final int currentStreak = data['currentStreak'] ?? 0;
+      final int currentLongest = data['longestStreak'] ?? 0; // Get existing longest
 
-      // --- 1. Check if user already checked in today ---
+      // 1. If already checked in today, do nothing
       if (lastCheckIn == today) {
-        print("Streak already updated today.");
-        return; // Already checked in today
+        return; 
       }
 
-      // --- 2. Check if the streak is continuing ---
+      // 2. Check if streak continues
       final String yesterday = DateFormat('yyyy-MM-dd')
           .format(DateTime.now().subtract(const Duration(days: 1)));
 
+      int newStreak = 1; // Default reset
       if (lastCheckIn == yesterday) {
-        // Streak continues!
-        await userDocRef.update({
-          'currentStreak': currentStreak + 1,
-          'lastCheckInDate': today,
-        });
-        print("Streak continued! New streak: ${currentStreak + 1}");
-      } else {
-        // Streak is broken or just starting
-        await userDocRef.update({
-          'currentStreak': 1, // Reset to 1
-          'lastCheckInDate': today,
-        });
-        print("Streak reset to 1.");
+        newStreak = currentStreak + 1;
       }
+
+      // 3. Calculate new Longest Streak
+      int newLongest = currentLongest;
+      if (newStreak > currentLongest) {
+        newLongest = newStreak;
+      }
+
+      // 4. Update Everything (Streak, Date, Points, Longest)
+      await userDocRef.update({
+        'currentStreak': newStreak,
+        'lastCheckInDate': today,
+        'longestStreak': newLongest, // Save longest
+        'totalPoints': FieldValue.increment(25), // Award 25 pts for check-in
+      });
+      
     } catch (e) {
       print("Error updating daily streak: $e");
-      // Fail silently, don't crash the app
     }
   }
 }

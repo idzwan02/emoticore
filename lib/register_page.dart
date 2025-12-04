@@ -24,6 +24,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _dateController = TextEditingController();
+  final _mantraController = TextEditingController();
 
   // State variables for password fields
   bool _isPasswordVisible = false;
@@ -99,6 +100,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _dateController.dispose();
+    _mantraController.dispose();
     super.dispose();
   }
 
@@ -150,6 +152,11 @@ class _RegisterPageState extends State<RegisterPage> {
           'currentStreak': 0,
           'lastCheckInDate': null, // Use null to show they've never checked in
           'totalPoints': 0,
+          'longestStreak': 0,
+          'unlockedBadges': [],
+          'mantra': _mantraController.text.trim().isEmpty 
+              ? "One day at a time." // Default if empty
+              : _mantraController.text.trim(),
         });
       }
 
@@ -335,6 +342,14 @@ class _RegisterPageState extends State<RegisterPage> {
                             suffixIcon: const Icon(Icons.calendar_today,
                                 color: Colors.grey)),
                         onTap: () => _selectDate(context),
+                      ),
+                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
+                      _buildTextField(
+                        _mantraController,
+                        "PERSONAL MANTRA",
+                        "E.g., I am enough",
+                        lightGray: lightGray,
                       ),
                       const SizedBox(height: 30),
                       // Sign up button
