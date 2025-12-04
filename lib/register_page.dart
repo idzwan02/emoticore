@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'custom_page_route.dart';
 import 'dashboard_page.dart';
+import 'gamification_data.dart'; // <-- 1. IMPORT THIS
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -24,74 +25,12 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _dateController = TextEditingController();
-  final _mantraController = TextEditingController();
+  final _mantraController = TextEditingController(); // Added Mantra controller
 
-  // State variables for password fields
+  // State variables
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
-
-  String _selectedAvatarId = 'user'; // Default avatar ID
-
-  // Avatar Map
-  final Map<String, String> _availableAvatarAssets = {
-    'default': 'assets/avatars/user.png',
-    'astronaut (2)': 'assets/avatars/astronaut (2).png',
-    'astronaut': 'assets/avatars/astronaut.png',
-    'bear': 'assets/avatars/bear.png',
-    'boy': 'assets/avatars/boy.png',
-    'cat (2)': 'assets/avatars/cat (2).png',
-    'cat': 'assets/avatars/cat.png',
-    'chicken': 'assets/avatars/chicken.png',
-    'cow': 'assets/avatars/cow.png',
-    'dog (1)': 'assets/avatars/dog (1).png',
-    'dog (2)': 'assets/avatars/dog (2).png',
-    'dog': 'assets/avatars/dog.png',
-    'dragon': 'assets/avatars/dragon.png',
-    'eagle': 'assets/avatars/eagle.png',
-    'fox': 'assets/avatars/fox.png',
-    'gamer': 'assets/avatars/gamer.png',
-    'gorilla': 'assets/avatars/gorilla.png',
-    'hen': 'assets/avatars/hen.png',
-    'hippopotamus': 'assets/avatars/hippopotamus.png',
-    'human': 'assets/avatars/human.png',
-    'koala': 'assets/avatars/koala.png',
-    'lion': 'assets/avatars/lion.png',
-    'man (1)': 'assets/avatars/man (1).png',
-    'man (2)': 'assets/avatars/man (2).png',
-    'man (3)': 'assets/avatars/man (3).png',
-    'man (4)': 'assets/avatars/man (4).png',
-    'man (5)': 'assets/avatars/man (5).png',
-    'man (6)': 'assets/avatars/man (6).png',
-    'man (7)': 'assets/avatars/man (7).png',
-    'man (8)': 'assets/avatars/man (8).png',
-    'man (9)': 'assets/avatars/man (9).png',
-    'man (10)': 'assets/avatars/man (10).png',
-    'man (11)': 'assets/avatars/man (11).png',
-    'man (12)': 'assets/avatars/man (12).png',
-    'man (13)': 'assets/avatars/man (13).png',
-    'man': 'assets/avatars/man.png',
-    'meerkat': 'assets/avatars/meerkat.png',
-    'owl': 'assets/avatars/owl.png',
-    'panda': 'assets/avatars/panda.png',
-    'polar-bear': 'assets/avatars/polar-bear.png',
-    'profile (2)': 'assets/avatars/profile (2).png',
-    'profile': 'assets/avatars/profile.png',
-    'puffer-fish': 'assets/avatars/puffer-fish.png',
-    'rabbit': 'assets/avatars/rabbit.png',
-    'robot': 'assets/avatars/robot.png',
-    'shark': 'assets/avatars/shark.png',
-    'sloth': 'assets/avatars/sloth.png',
-    'user (1)': 'assets/avatars/user (1).png',
-    'user (2)': 'assets/avatars/user (2).png',
-    'user': 'assets/avatars/user.png',
-    'woman (1)': 'assets/avatars/woman (1).png',
-    'woman (2)': 'assets/avatars/woman (2).png',
-    'woman (3)': 'assets/avatars/woman (3).png',
-    'woman (4)': 'assets/avatars/woman (4).png',
-    'woman (5)': 'assets/avatars/woman (5).png',
-    'woman (6)': 'assets/avatars/woman (6).png',
-    'woman': 'assets/avatars/woman.png',
-  };
+  String _selectedAvatarId = 'default'; // Default avatar ID
 
   @override
   void dispose() {
@@ -149,13 +88,14 @@ class _RegisterPageState extends State<RegisterPage> {
           'uid': userCredential.user!.uid,
           'joinedAt': Timestamp.now(),
           'selectedAvatarId': _selectedAvatarId,
+          // Initialize gamification fields
           'currentStreak': 0,
-          'lastCheckInDate': null, // Use null to show they've never checked in
-          'totalPoints': 0,
           'longestStreak': 0,
+          'lastCheckInDate': null,
+          'totalPoints': 0,
           'unlockedBadges': [],
           'mantra': _mantraController.text.trim().isEmpty 
-              ? "One day at a time." // Default if empty
+              ? "One day at a time." 
               : _mantraController.text.trim(),
         });
       }
@@ -165,7 +105,6 @@ class _RegisterPageState extends State<RegisterPage> {
           Navigator.pop(dialogContext!);
         }
         
-        // --- THIS IS THE FIX ---
         if (userCredential.user != null) {
           Navigator.pushAndRemoveUntil(
             context,
@@ -173,7 +112,6 @@ class _RegisterPageState extends State<RegisterPage> {
             (route) => false,
           );
         }
-        // --- END FIX ---
       }
     } on FirebaseAuthException catch (e) {
       if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
@@ -199,6 +137,91 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // --- 2. UPDATED AVATAR DIALOG ---
+  void _showAvatarSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Select Avatar"),
+          content: SingleChildScrollView(
+            child: Wrap(
+              spacing: 10.0,
+              runSpacing: 10.0,
+              alignment: WrapAlignment.center,
+              // Use masterAvatarAssets from gamification_data.dart
+              children: masterAvatarAssets.entries.map((entry) {
+                final String avatarId = entry.key;
+                final String assetPath = entry.value;
+                bool isSelected = _selectedAvatarId == avatarId;
+                
+                // CHECK LOCK STATUS
+                // New users have 0 points, so any cost > 0 is locked
+                int cost = avatarUnlockThresholds[avatarId] ?? 0;
+                bool isLocked = cost > 0; 
+
+                return GestureDetector(
+                  onTap: () {
+                    if (isLocked) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Earn $cost points to unlock this later!"),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                      return; // Stop selection
+                    }
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _selectedAvatarId = avatarId;
+                    });
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: tealBlue, width: 3),
+                              )
+                            : null,
+                        child: CircleAvatar(
+                          radius: 35,
+                          backgroundColor: Colors.grey.shade300,
+                          child: Opacity(
+                            // Dim locked avatars
+                            opacity: isLocked ? 0.4 : 1.0,
+                            child: CircleAvatar(
+                              radius: 35,
+                              backgroundColor: Colors.transparent,
+                              backgroundImage: AssetImage(assetPath),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Show Lock Icon
+                      if (isLocked)
+                        const Positioned.fill(
+                          child: Icon(Icons.lock, color: Colors.black54, size: 24),
+                        ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Cancel"),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -244,6 +267,8 @@ class _RegisterPageState extends State<RegisterPage> {
                             TextStyle(fontSize: 14, color: Color(0xFFA0A0A0)),
                       ),
                       const SizedBox(height: 30),
+                      
+                      // Avatar Selection
                       Center(
                         child: GestureDetector(
                           onTap: _showAvatarSelectionDialog, 
@@ -254,12 +279,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                 radius: 60, 
                                 backgroundColor: lightGray,
                                 backgroundImage: AssetImage(
-                                    _availableAvatarAssets[_selectedAvatarId] ??
-                                        _availableAvatarAssets['default']!),
-                                onBackgroundImageError: (e, s) {
-                                  print(
-                                      "Error loading register asset: ${_availableAvatarAssets[_selectedAvatarId]}");
-                                },
+                                    masterAvatarAssets[_selectedAvatarId] ??
+                                        masterAvatarAssets['default']!),
                               ),
                               Positioned(
                                 bottom: 0,
@@ -276,6 +297,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                       const SizedBox(height: 30),
+                      
                       _buildTextField(
                           _nameController,
                           "NAME",
@@ -325,6 +347,16 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                       const SizedBox(height: 20),
+                      
+                      // Mantra Field
+                      _buildTextField(
+                        _mantraController,
+                        "PERSONAL MANTRA",
+                        "E.g. I am enough",
+                        lightGray: lightGray,
+                      ),
+                      const SizedBox(height: 20),
+
                       // Date of Birth field
                       const Text(
                         "DATE OF BIRTH",
@@ -344,14 +376,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         onTap: () => _selectDate(context),
                       ),
                       const SizedBox(height: 30),
-                      const SizedBox(height: 20),
-                      _buildTextField(
-                        _mantraController,
-                        "PERSONAL MANTRA",
-                        "E.g., I am enough",
-                        lightGray: lightGray,
-                      ),
-                      const SizedBox(height: 30),
+                      
                       // Sign up button
                       Center(
                         child: ElevatedButton(
@@ -382,62 +407,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // (This function is unchanged)
-  void _showAvatarSelectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("Select Avatar"),
-          content: SingleChildScrollView(
-            child: Wrap(
-              spacing: 10.0,
-              runSpacing: 10.0,
-              alignment: WrapAlignment.center,
-              children: _availableAvatarAssets.entries.map((entry) {
-                final String avatarId = entry.key;
-                final String assetPath = entry.value;
-                bool isSelected = _selectedAvatarId == avatarId;
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    setState(() {
-                      _selectedAvatarId = avatarId;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: isSelected
-                        ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: tealBlue, width: 3),
-                          )
-                        : null,
-                    child: CircleAvatar(
-                      radius: 35,
-                      backgroundColor: Colors.grey.shade300,
-                      backgroundImage: AssetImage(assetPath),
-                      onBackgroundImageError: (e, s) {
-                        print("Error loading asset in dialog: $assetPath");
-                      },
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text("Cancel"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // (This function is unchanged)
   Widget _buildTextField(
       TextEditingController controller, String label, String hintText,
       {bool obscureText = false,
@@ -464,7 +433,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // (This function is unchanged)
   InputDecoration _buildInputDecoration(String hintText, Color lightGray,
       {Widget? suffixIcon}) {
     return InputDecoration(
@@ -481,7 +449,6 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // (This function is unchanged)
   Future<void> _selectDate(BuildContext context) async {
     FocusScope.of(context).requestFocus(FocusNode());
     DateTime? pickedDate = await showDatePicker(
