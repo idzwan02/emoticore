@@ -1,11 +1,13 @@
 // In: lib/activities_page.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
-import 'custom_page_route.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <-- IMPORT ADDED
+import 'package:cloud_firestore/cloud_firestore.dart'; // <-- IMPORT ADDED
+import 'custom_page_route.dart';
 import 'dass21_page.dart';
 import 'journaling_page.dart';
 import 'moodboard_page.dart';
-import 'pop_quiz_page.dart'; // Make sure this is imported
+import 'pop_quiz_page.dart';
 
 class ActivitiesPage extends StatefulWidget {
   const ActivitiesPage({super.key});
@@ -15,42 +17,96 @@ class ActivitiesPage extends StatefulWidget {
 }
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
-
   // Define the background color
   static const Color activitiesPageColor = Color(0xFFB0D8D8);
   // Define the primary color (consistent with AppBar)
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
 
-  // --- (Time check logic for DASS-21 is unchanged) ---
+  // --- UPDATED TIME CHECK LOGIC ---
   Future<void> _handleDass21Tap() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? lastCompletionDateStr =
-        prefs.getString('lastDass21CompletionDate');
+    // 1. Show a loading indicator while we check (optional, but good UX if network is slow)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
 
-    if (lastCompletionDateStr == null) {
-      if (mounted) {
-        Navigator.push(
-          context,
-          FadeRoute(page: const Dass21Page()),
-        );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String? lastCompletionDateStr = prefs.getString('lastDass21CompletionDate');
+
+      // 2. LOOPHOLE FIX: If local data is missing, check Firestore
+      if (lastCompletionDateStr == null) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final querySnapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('dass21_results')
+              .orderBy('timestamp', descending: true)
+              .limit(1)
+              .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+            // Found a record on the server!
+            final lastDoc = querySnapshot.docs.first;
+            final Timestamp timestamp = lastDoc['timestamp'];
+            lastCompletionDateStr = timestamp.toDate().toIso8601String();
+
+            // Save it locally so next time is faster
+            await prefs.setString(
+                'lastDass21CompletionDate', lastCompletionDateStr);
+          }
+        }
       }
-      return;
-    }
 
-    final DateTime lastCompletionDate = DateTime.parse(lastCompletionDateStr);
-    final int daysSinceLast =
-        DateTime.now().difference(lastCompletionDate).inDays;
-
-    if (daysSinceLast < 7) {
-      final int daysRemaining = 7 - daysSinceLast;
-      final String dayWord = daysRemaining == 1 ? 'day' : 'days';
-      if (mounted) {
-        _showTimeLockDialog(
-            'Assessment Locked',
-            'You can take the DASS-21 assessment again in $daysRemaining $dayWord.'
-        );
+      // Close the loading indicator
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
       }
-    } else {
+
+      // 3. Now proceed with the check logic
+      if (lastCompletionDateStr == null) {
+        // Truly no record found anywhere. Let them proceed.
+        if (mounted) {
+          Navigator.push(
+            context,
+            FadeRoute(page: const Dass21Page()),
+          );
+        }
+        return;
+      }
+
+      final DateTime lastCompletionDate = DateTime.parse(lastCompletionDateStr);
+      final int daysSinceLast =
+          DateTime.now().difference(lastCompletionDate).inDays;
+
+      if (daysSinceLast < 7) {
+        // It has been less than 7 days
+        final int daysRemaining = 7 - daysSinceLast;
+        final String dayWord = daysRemaining == 1 ? 'day' : 'days';
+        if (mounted) {
+          _showTimeLockDialog(
+              'Assessment Locked',
+              'You can take the DASS-21 assessment again in $daysRemaining $dayWord.');
+        }
+      } else {
+        // It has been 7 or more days, let them proceed
+        if (mounted) {
+          Navigator.push(
+            context,
+            FadeRoute(page: const Dass21Page()),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading if error
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+      print("Error checking DASS date: $e");
+      // If error, we default to letting them in or showing an error message
+      // For now, let's just let them in to avoid locking them out due to a bug
       if (mounted) {
         Navigator.push(
           context,
@@ -83,38 +139,34 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       },
     );
   }
-  // --- (End of DASS-21 logic) ---
+  // --- End Updated Logic ---
 
   @override
   Widget build(BuildContext context) {
-    // --- 1. REMOVED all the screen width calculations ---
-    
-    // --- 2. SET a fixed size for cards ---
     const double itemWidth = 150.0; 
-    const double spacing = 15.0; // Horizontal gap between cards
+    const double spacing = 15.0; 
 
     return Scaffold(
       backgroundColor: activitiesPageColor,
       appBar: AppBar(
-        backgroundColor: appPrimaryColor, 
+        backgroundColor: appPrimaryColor,
         automaticallyImplyLeading: false,
         title: const Text(
           'Activities',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        elevation: 1.0, 
+        elevation: 1.0,
       ),
-      // --- 3. WRAP the body in a Center widget ---
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(
-            horizontal: 20.0, // This padding is now for the whole centered block
+            horizontal: 20.0,
             vertical: 20.0,
           ),
           child: Wrap(
-            spacing: spacing, // Horizontal space between cards
-            runSpacing: 15.0, // Vertical space between rows
-            alignment: WrapAlignment.center, // Keep this to center items
+            spacing: spacing,
+            runSpacing: 15.0,
+            alignment: WrapAlignment.center,
             children: <Widget>[
               // Card 1: Journaling
               SizedBox(
@@ -126,7 +178,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      FadeRoute(page: const JournalingPage()), 
+                      FadeRoute(page: const JournalingPage()),
                     );
                   },
                 ),
@@ -141,7 +193,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      FadeRoute(page: const MoodboardPage()), 
+                      FadeRoute(page: const MoodboardPage()),
                     );
                   },
                 ),
@@ -168,7 +220,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   context: context,
                   icon: Icons.checklist_rtl,
                   label: 'DASS-21',
-                  onTap: _handleDass21Tap,
+                  onTap: _handleDass21Tap, // Using the new secure check
                 ),
               ),
             ],
@@ -178,7 +230,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     );
   }
 
-  // (This helper widget is unchanged)
   Widget _buildActivityCard({
     required BuildContext context,
     required IconData icon,
@@ -187,11 +238,11 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(15.0), 
+      borderRadius: BorderRadius.circular(15.0),
       child: AspectRatio(
         aspectRatio: 1.0,
         child: Card(
-          elevation: 2.0, 
+          elevation: 2.0,
           shadowColor: Colors.black.withOpacity(0.1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15.0),
@@ -203,15 +254,15 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 icon,
                 size: 50.0,
                 color: appPrimaryColor,
-              ), 
-              const SizedBox(height: 12.0), 
+              ),
+              const SizedBox(height: 12.0),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Text(
                   label,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 15.0, 
+                    fontSize: 15.0,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey.shade800,
                   ),

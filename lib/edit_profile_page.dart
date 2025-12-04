@@ -4,14 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
+import 'gamification_data.dart'; // <-- IMPORT THIS for unlock rules
 
 class EditProfilePage extends StatefulWidget {
   final String currentName;
-  final String currentDob; // Expected format 'dd/MM/yyyy'
-  
-  // --- 1. ADD AVATAR INFO ---
+  final String currentDob; 
   final String currentAvatarId;
   final Map<String, String> availableAvatarAssets;
+  final int userTotalPoints; // <-- Receives points from ProfilePage
 
   const EditProfilePage({
     super.key,
@@ -19,6 +19,7 @@ class EditProfilePage extends StatefulWidget {
     required this.currentDob,
     required this.currentAvatarId,
     required this.availableAvatarAssets,
+    required this.userTotalPoints,
   });
 
   @override
@@ -29,8 +30,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nameController;
   late final TextEditingController _dateController;
   bool _isSaving = false;
-
-  // --- 2. ADD AVATAR STATE ---
   late String _selectedAvatarId;
 
   // Theme Colors
@@ -44,7 +43,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     super.initState();
     _nameController = TextEditingController(text: widget.currentName);
     _dateController = TextEditingController(text: widget.currentDob);
-    _selectedAvatarId = widget.currentAvatarId; // Initialize avatar state
+    _selectedAvatarId = widget.currentAvatarId; 
   }
 
   @override
@@ -80,7 +79,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  // --- 3. ADD AVATAR DIALOG ---
+  // --- AVATAR SELECTION WITH UNLOCK LOGIC ---
   void _showAvatarSelectionDialog() {
     showDialog(
       context: context,
@@ -96,27 +95,61 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 final String avatarId = entry.key;
                 final String assetPath = entry.value;
                 bool isSelected = _selectedAvatarId == avatarId;
+                
+                // 1. Check Lock Status
+                // Default cost is 0 if not found in the map
+                int cost = avatarUnlockThresholds[avatarId] ?? 0;
+                bool isLocked = widget.userTotalPoints < cost;
+
                 return GestureDetector(
                   onTap: () {
+                    // 2. Handle Lock Click
+                    if (isLocked) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Earn $cost points to unlock!"),
+                          backgroundColor: Colors.redAccent,
+                          duration: const Duration(milliseconds: 1500),
+                        ),
+                      );
+                      return;
+                    }
+                    // 3. Handle Select Click
                     setState(() {
                       _selectedAvatarId = avatarId;
                     });
                     Navigator.of(context).pop();
                   },
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: isSelected
-                        ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            border:
-                                Border.all(color: appPrimaryColor, width: 3),
-                          )
-                        : null,
-                    child: CircleAvatar(
-                      radius: 35,
-                      backgroundColor: Colors.grey.shade300,
-                      backgroundImage: AssetImage(assetPath),
-                    ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: appPrimaryColor, width: 3),
+                              )
+                            : null,
+                        child: CircleAvatar(
+                          radius: 35,
+                          backgroundColor: Colors.grey.shade300,
+                          // Dim the avatar if locked
+                          child: Opacity(
+                            opacity: isLocked ? 0.3 : 1.0, 
+                            child: CircleAvatar(
+                              radius: 35,
+                              backgroundColor: Colors.transparent,
+                              backgroundImage: AssetImage(assetPath),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Show Lock Icon if locked
+                      if (isLocked)
+                        const Icon(Icons.lock, color: Colors.black54, size: 24),
+                    ],
                   ),
                 );
               }).toList(),
@@ -132,9 +165,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       },
     );
   }
-  // --- END ADD ---
 
-  // --- 4. UPDATE SAVE FUNCTION ---
   Future<void> _saveProfile() async {
     if (_nameController.text.isEmpty || _dateController.text.isEmpty) {
       _showErrorDialog("Please fill out all fields.");
@@ -151,11 +182,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _showLoadingDialog();
 
     try {
-      // Save all three fields
       await FirebaseFirestore.instance.collection('users').doc(uid).update({
         'name': _nameController.text.trim(),
         'dateOfBirth': _dateController.text.trim(),
-        'selectedAvatarId': _selectedAvatarId, // <-- Save the avatar
+        'selectedAvatarId': _selectedAvatarId, // Save the new avatar
       });
       
       if (mounted) {
@@ -230,7 +260,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // --- 5. ADD AVATAR EDITOR UI ---
+                // Avatar Editor Area
                 Center(
                   child: GestureDetector(
                     onTap: _showAvatarSelectionDialog,
@@ -259,8 +289,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                // --- END ADD ---
 
+                // Name Field
                 _buildTextField(
                   _nameController,
                   "NAME",
@@ -268,6 +298,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   lightGray: lightGray,
                 ),
                 const SizedBox(height: 20),
+                
+                // DOB Field
                 const Text(
                   "DATE OF BIRTH",
                   style: TextStyle(fontSize: 12, color: Color(0xFFA0A0A0), letterSpacing: 1.5),
@@ -291,7 +323,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // (This helper is unchanged)
   Widget _buildTextField(
     TextEditingController controller,
     String label,
@@ -315,7 +346,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // (This helper is unchanged)
   InputDecoration _buildInputDecoration(String hintText, Color lightGray, {Widget? suffixIcon}) {
     return InputDecoration(
       hintText: hintText,

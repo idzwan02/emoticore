@@ -10,17 +10,12 @@ import 'custom_page_route.dart';
 class ProfilePage extends StatefulWidget {
   final Stream<DocumentSnapshot>? userStream;
   final Map<String, String> availableAvatarAssets;
-  // final Function(String) onAvatarSelected; // <-- 1. REMOVED
-  // final bool isSavingAvatar; // <-- 2. REMOVED
-
   final VoidCallback onChangeAccount;
 
   const ProfilePage({
     super.key,
     required this.userStream,
     required this.availableAvatarAssets,
-    // required this.onAvatarSelected, // <-- 3. REMOVED
-    // required this.isSavingAvatar, // <-- 4. REMOVED
     required this.onChangeAccount,
   });
 
@@ -29,10 +24,9 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  // Define theme colors
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
-
-  // void _showAvatarSelectionDialog(...) { ... } // <-- 5. REMOVED
 
   @override
   Widget build(BuildContext context) {
@@ -45,19 +39,22 @@ class _ProfilePageState extends State<ProfilePage> {
         automaticallyImplyLeading: false,
         elevation: 1.0,
         actions: [
-          // This "Edit" button is now the only one
+          // --- EDIT BUTTON (With Data Stream) ---
           StreamBuilder<DocumentSnapshot>(
             stream: widget.userStream,
             builder: (context, snapshot) {
+              // Default values
               String name = 'User';
               String dob = 'Not set';
               String avatarId = 'default';
+              int totalPoints = 0;
 
               if (snapshot.hasData && snapshot.data!.exists) {
                 final data = snapshot.data!.data() as Map<String, dynamic>;
                 name = data['name'] ?? 'User';
                 dob = data['dateOfBirth'] ?? 'Not set';
                 avatarId = data['selectedAvatarId'] ?? 'default';
+                totalPoints = data['totalPoints'] ?? 0; // <-- Get Points
               }
 
               return IconButton(
@@ -70,9 +67,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       page: EditProfilePage(
                         currentName: name,
                         currentDob: dob,
-                        // --- 6. PASS AVATAR INFO ---
                         currentAvatarId: avatarId,
                         availableAvatarAssets: widget.availableAvatarAssets,
+                        userTotalPoints: totalPoints, // <-- Pass Points to Edit Page
                       ),
                     ),
                   );
@@ -82,6 +79,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
+      // --- BODY CONTENT ---
       body: StreamBuilder<DocumentSnapshot>(
         stream: widget.userStream,
         builder: (context, snapshot) {
@@ -119,14 +117,12 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 const Spacer(),
                 
-                // --- 7. REMOVED GestureDetector & Stack ---
-                // This is now just a display
+                // Display Avatar (Read-only here)
                 CircleAvatar(
                   radius: 80,
                   backgroundColor: Colors.grey.shade300,
                   backgroundImage: AssetImage(displayAvatarPath),
                 ),
-                // --- END REMOVAL ---
                 
                 const SizedBox(height: 24),
                 Text(
@@ -170,7 +166,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const Spacer(),
                 
-                // "Log Out" button
+                // Styled Log Out Button
                 OutlinedButton.icon(
                   icon: Icon(Icons.logout, color: Colors.red.shade700),
                   label: Text(
