@@ -7,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lottie/lottie.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'auth_gate.dart';
 import 'activities_page.dart';
 import 'custom_page_route.dart';
@@ -45,8 +44,6 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
   static const Color statNumberColor = Color(0xFF4A69FF);
-  static const Color goldBadgeColor = Color(0xFFD4AF37);
-  static const Color redBadgeColor = Color(0xFFC70039);
   static const Color depressionBarColor = Color(0xFFEF5350);
   static const Color anxietyBarColor = Color(0xFFFFCA28);
   static const Color stressBarColor = Color(0xFF26C6DA);
@@ -245,6 +242,99 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
     }
   }
 
+  void _showBadgeSelectionDialog(List<String> unlockedIds, List<String> currentSelectedIds) {
+    // Local state for the dialog
+    List<String> tempSelected = List.from(currentSelectedIds);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text("Showcase Badges (Max 3)"),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: unlockedIds.isEmpty 
+                  ? const Text("You haven't unlocked any badges yet!")
+                  : GridView.builder(
+                      shrinkWrap: true,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 0.8,
+                      ),
+                      itemCount: unlockedIds.length,
+                      itemBuilder: (context, index) {
+                        final id = unlockedIds[index];
+                        final badge = allBadges.firstWhere((b) => b.id == id, orElse: () => allBadges[0]);
+                        final bool isSelected = tempSelected.contains(id);
+
+                        return GestureDetector(
+                          onTap: () {
+                            setStateDialog(() {
+                              if (isSelected) {
+                                tempSelected.remove(id);
+                              } else {
+                                if (tempSelected.length < 3) {
+                                  tempSelected.add(id);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("You can only select 3 badges to showcase.")),
+                                  );
+                                }
+                              }
+                            });
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isSelected ? appPrimaryColor.withOpacity(0.1) : Colors.transparent,
+                              border: isSelected ? Border.all(color: appPrimaryColor, width: 2) : Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(badge.icon, color: badge.color, size: 30),
+                                const SizedBox(height: 4),
+                                Text(
+                                  badge.name,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+                                ),
+                                if (isSelected)
+                                  const Icon(Icons.check_circle, size: 16, color: appPrimaryColor)
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel"),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    // Save to Firestore
+                    await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({
+                      'selectedBadges': tempSelected,
+                    });
+                    if (mounted) Navigator.pop(context);
+                  },
+                  child: const Text("Save"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
@@ -354,61 +444,80 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   Widget _buildBadgesSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
-          child: StreamBuilder<DocumentSnapshot>(
-            stream: _userStream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || !snapshot.data!.exists) {
-                return const Center(child: Text("Loading..."));
-              }
-              
-              final data = snapshot.data!.data() as Map<String, dynamic>;
-              final List<String> unlockedIds = List<String>.from(data['unlockedBadges'] ?? []);
+      child: StreamBuilder<DocumentSnapshot>(
+        stream: _userStream,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const Card(child: SizedBox(height: 100, child: Center(child: Text("Loading..."))));
+          }
+          
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          final List<String> unlockedIds = List<String>.from(data['unlockedBadges'] ?? []);
+          final List<String> selectedIds = List<String>.from(data['selectedBadges'] ?? []);
 
-              if (unlockedIds.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Text("Start completing tasks to earn badges!", style: TextStyle(color: Colors.grey)),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Edit button moved here to access stream data
+              GestureDetector(
+                onTap: () => _showBadgeSelectionDialog(unlockedIds, selectedIds),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.edit, size: 16, color: Colors.grey),
+                      SizedBox(width: 4),
+                      Text("Edit Showcase", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
                   ),
-                );
-              }
-
-              return Wrap(
-                spacing: 15.0,
-                runSpacing: 10.0,
-                alignment: WrapAlignment.center,
-                children: unlockedIds.map((id) {
-                  final badge = allBadges.firstWhere((b) => b.id == id, orElse: () => allBadges[0]);
-                  return Tooltip(
-                    message: badge.description,
-                    triggerMode: TooltipTriggerMode.tap,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(badge.icon, color: badge.color, size: 40),
-                        const SizedBox(height: 4),
-                        Text(badge.name, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ),
+                ),
+              ),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
+                  child: selectedIds.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Text("No badges selected. Tap 'Edit Showcase' to display your achievements!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                          ),
+                        )
+                      : Wrap(
+                          spacing: 20.0,
+                          runSpacing: 10.0,
+                          alignment: WrapAlignment.center,
+                          children: selectedIds.map((id) {
+                            final badge = allBadges.firstWhere(
+                              (b) => b.id == id, 
+                              orElse: () => allBadges[0]
+                            );
+                            return Tooltip(
+                              message: badge.description,
+                              triggerMode: TooltipTriggerMode.tap,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(badge.icon, color: badge.color, size: 45), // Bigger size for showcase
+                                  const SizedBox(height: 4),
+                                  Text(badge.name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBadge(Color color) {
-    return Icon(Icons.emoji_events, color: color, size: 40);
-  }
 
   Widget _buildStatisticsSection() {
     return Padding(

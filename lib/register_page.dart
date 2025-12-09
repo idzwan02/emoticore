@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'custom_page_route.dart';
 import 'dashboard_page.dart';
-import 'gamification_data.dart'; // <-- 1. IMPORT THIS
+import 'gamification_data.dart'; // <-- Import for Avatar Data
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -18,6 +18,7 @@ class _RegisterPageState extends State<RegisterPage> {
   // --- Theme Colors ---
   static const Color tealBlue = Color(0xFF5E8C95);
   static const Color lightGray = Color(0xFFD9D6D6);
+  static const Color appPrimaryColor = Color(0xFF5A9E9E); // Added for avatar border
 
   // Controllers
   final _nameController = TextEditingController();
@@ -25,7 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _dateController = TextEditingController();
-  final _mantraController = TextEditingController(); // Added Mantra controller
+  final _mantraController = TextEditingController(); // Mantra
 
   // State variables
   bool _isPasswordVisible = false;
@@ -77,9 +78,11 @@ class _RegisterPageState extends State<RegisterPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+      
       if (userCredential.user != null) {
         await userCredential.user!.updateDisplayName(_nameController.text.trim());
 
+        // --- 1. FULL DATA INITIALIZATION ---
         FirebaseFirestore firestore = FirebaseFirestore.instance;
         await firestore.collection("users").doc(userCredential.user!.uid).set({
           'name': _nameController.text.trim(),
@@ -88,16 +91,19 @@ class _RegisterPageState extends State<RegisterPage> {
           'uid': userCredential.user!.uid,
           'joinedAt': Timestamp.now(),
           'selectedAvatarId': _selectedAvatarId,
-          // Initialize gamification fields
+          
+          // Initialize Gamification & Profile Stats
           'currentStreak': 0,
           'longestStreak': 0,
           'lastCheckInDate': null,
-          'totalPoints': 0,
+          'totalPoints': 0, // Start with 0 points
           'unlockedBadges': [],
+          'selectedBadges': [],
           'mantra': _mantraController.text.trim().isEmpty 
               ? "One day at a time." 
               : _mantraController.text.trim(),
         });
+        // --- END INITIALIZATION ---
       }
 
       if (mounted) {
@@ -105,6 +111,7 @@ class _RegisterPageState extends State<RegisterPage> {
           Navigator.pop(dialogContext!);
         }
         
+        // --- 2. NAVIGATION FIX (Pass User) ---
         if (userCredential.user != null) {
           Navigator.pushAndRemoveUntil(
             context,
@@ -112,11 +119,11 @@ class _RegisterPageState extends State<RegisterPage> {
             (route) => false,
           );
         }
+        // --- END FIX ---
       }
     } on FirebaseAuthException catch (e) {
       if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
-      _showErrorDialog(
-          e.message ?? "An error occurred during registration.");
+      _showErrorDialog(e.message ?? "An error occurred during registration.");
     } catch (e) {
       if (dialogContext != null && Navigator.canPop(dialogContext!)) Navigator.pop(dialogContext!);
       _showErrorDialog("An unexpected error occurred: ${e.toString()}");
@@ -140,7 +147,7 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  // --- 2. UPDATED AVATAR DIALOG ---
+  // --- 3. AVATAR SELECTION (With Locking) ---
   void _showAvatarSelectionDialog() {
     showDialog(
       context: context,
@@ -152,13 +159,12 @@ class _RegisterPageState extends State<RegisterPage> {
               spacing: 10.0,
               runSpacing: 10.0,
               alignment: WrapAlignment.center,
-              // Use masterAvatarAssets from gamification_data.dart
+              // Use imported master map
               children: masterAvatarAssets.entries.map((entry) {
                 final String avatarId = entry.key;
                 final String assetPath = entry.value;
                 bool isSelected = _selectedAvatarId == avatarId;
                 
-                // CHECK LOCK STATUS
                 // New users have 0 points, so any cost > 0 is locked
                 int cost = avatarUnlockThresholds[avatarId] ?? 0;
                 bool isLocked = cost > 0; 
@@ -172,7 +178,7 @@ class _RegisterPageState extends State<RegisterPage> {
                           duration: const Duration(seconds: 2),
                         ),
                       );
-                      return; // Stop selection
+                      return; 
                     }
                     Navigator.of(context).pop();
                     setState(() {
@@ -186,14 +192,13 @@ class _RegisterPageState extends State<RegisterPage> {
                         decoration: isSelected
                             ? BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: tealBlue, width: 3),
+                                border: Border.all(color: appPrimaryColor, width: 3),
                               )
                             : null,
                         child: CircleAvatar(
                           radius: 35,
                           backgroundColor: Colors.grey.shade300,
                           child: Opacity(
-                            // Dim locked avatars
                             opacity: isLocked ? 0.4 : 1.0,
                             child: CircleAvatar(
                               radius: 35,
@@ -203,7 +208,6 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ),
                       ),
-                      // Show Lock Icon
                       if (isLocked)
                         const Positioned.fill(
                           child: Icon(Icons.lock, color: Colors.black54, size: 24),
@@ -348,7 +352,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       const SizedBox(height: 20),
                       
-                      // Mantra Field
+                      // --- 4. MANTRA FIELD ---
                       _buildTextField(
                         _mantraController,
                         "PERSONAL MANTRA",

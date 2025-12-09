@@ -40,7 +40,7 @@ class _JournalingPageState extends State<JournalingPage> with SingleTickerProvid
     if (_currentUser != null) {
       _baseQuery = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUser!.uid)
+          .doc(_currentUser.uid)
           .collection('journal_entries');
     }
   }

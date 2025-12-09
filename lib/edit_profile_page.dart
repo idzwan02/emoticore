@@ -89,75 +89,56 @@ class _EditProfilePageState extends State<EditProfilePage> {
     showDialog(
       context: context,
       builder: (context) {
+        // 1. FILTER: Only create a list of unlocked avatars
+        final unlockedAvatars = widget.availableAvatarAssets.entries.where((entry) {
+          final String avatarId = entry.key;
+          final int cost = avatarUnlockThresholds[avatarId] ?? 0;
+          // Only keep if user has enough points
+          return widget.userTotalPoints >= cost;
+        }).toList();
+
         return AlertDialog(
           title: const Text("Select Avatar"),
-          content: SingleChildScrollView(
-            child: Wrap(
-              spacing: 10.0,
-              runSpacing: 10.0,
-              alignment: WrapAlignment.center,
-              children: widget.availableAvatarAssets.entries.map((entry) {
-                final String avatarId = entry.key;
-                final String assetPath = entry.value;
-                bool isSelected = _selectedAvatarId == avatarId;
-                
-                // 1. Check Lock Status
-                // Default cost is 0 if not found in the map
-                int cost = avatarUnlockThresholds[avatarId] ?? 0;
-                bool isLocked = widget.userTotalPoints < cost;
-
-                return GestureDetector(
-                  onTap: () {
-                    // 2. Handle Lock Click
-                    if (isLocked) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Earn $cost points to unlock!"),
-                          backgroundColor: Colors.redAccent,
-                          duration: const Duration(milliseconds: 1500),
-                        ),
-                      );
-                      return;
-                    }
-                    // 3. Handle Select Click
-                    setState(() {
-                      _selectedAvatarId = avatarId;
-                    });
-                    Navigator.of(context).pop();
-                  },
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: isSelected
-                            ? BoxDecoration(
-                                shape: BoxShape.circle,
-                                border:
-                                    Border.all(color: appPrimaryColor, width: 3),
-                              )
-                            : null,
-                        child: CircleAvatar(
-                          radius: 35,
-                          backgroundColor: Colors.grey.shade300,
-                          // Dim the avatar if locked
-                          child: Opacity(
-                            opacity: isLocked ? 0.3 : 1.0, 
-                            child: CircleAvatar(
-                              radius: 35,
-                              backgroundColor: Colors.transparent,
-                              backgroundImage: AssetImage(assetPath),
-                            ),
-                          ),
-                        ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          // 2. SMALLER WINDOW: Constrain height and width
+          content: Container(
+            width: double.maxFinite,
+            constraints: const BoxConstraints(maxHeight: 300), // Limit height
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 10.0,
+                runSpacing: 10.0,
+                alignment: WrapAlignment.center,
+                children: unlockedAvatars.map((entry) {
+                  final String avatarId = entry.key;
+                  final String assetPath = entry.value;
+                  bool isSelected = _selectedAvatarId == avatarId;
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedAvatarId = avatarId;
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: isSelected
+                          ? BoxDecoration(
+                              shape: BoxShape.circle,
+                              border:
+                                  Border.all(color: appPrimaryColor, width: 3),
+                            )
+                          : null,
+                      child: CircleAvatar(
+                        radius: 30, // Slightly smaller avatars for the list
+                        backgroundColor: Colors.grey.shade300,
+                        backgroundImage: AssetImage(assetPath),
                       ),
-                      // Show Lock Icon if locked
-                      if (isLocked)
-                        const Icon(Icons.lock, color: Colors.black54, size: 24),
-                    ],
-                  ),
-                );
-              }).toList(),
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           ),
           actions: [

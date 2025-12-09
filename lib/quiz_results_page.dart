@@ -1,7 +1,6 @@
 // In: lib/quiz_results_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lottie/lottie.dart';
 import 'pop_quiz_page.dart'; 
 import 'custom_page_route.dart';
