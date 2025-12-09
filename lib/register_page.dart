@@ -18,7 +18,6 @@ class _RegisterPageState extends State<RegisterPage> {
   // --- Theme Colors ---
   static const Color tealBlue = Color(0xFF5E8C95);
   static const Color lightGray = Color(0xFFD9D6D6);
-  static const Color appPrimaryColor = Color(0xFF5A9E9E); // Added for avatar border
 
   // Controllers
   final _nameController = TextEditingController();
@@ -148,10 +147,16 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   // --- 3. AVATAR SELECTION (With Locking) ---
-  void _showAvatarSelectionDialog() {
+ void _showAvatarSelectionDialog() {
     showDialog(
       context: context,
       builder: (context) {
+        // 1. FILTER: Create list of only free avatars (0 cost)
+        final freeAvatars = masterAvatarAssets.entries.where((entry) {
+          final int cost = avatarUnlockThresholds[entry.key] ?? 0;
+          return cost == 0;
+        }).toList();
+
         return AlertDialog(
           title: const Text("Select Avatar"),
           content: SingleChildScrollView(
@@ -159,60 +164,33 @@ class _RegisterPageState extends State<RegisterPage> {
               spacing: 10.0,
               runSpacing: 10.0,
               alignment: WrapAlignment.center,
-              // Use imported master map
-              children: masterAvatarAssets.entries.map((entry) {
+              children: freeAvatars.map((entry) {
                 final String avatarId = entry.key;
                 final String assetPath = entry.value;
                 bool isSelected = _selectedAvatarId == avatarId;
                 
-                // New users have 0 points, so any cost > 0 is locked
-                int cost = avatarUnlockThresholds[avatarId] ?? 0;
-                bool isLocked = cost > 0; 
+                // No need to check for locks here, list is already filtered
 
                 return GestureDetector(
                   onTap: () {
-                    if (isLocked) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Earn $cost points to unlock this later!"),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                      return; 
-                    }
                     Navigator.of(context).pop();
                     setState(() {
                       _selectedAvatarId = avatarId;
                     });
                   },
-                  child: Stack(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: isSelected
-                            ? BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: appPrimaryColor, width: 3),
-                              )
-                            : null,
-                        child: CircleAvatar(
-                          radius: 35,
-                          backgroundColor: Colors.grey.shade300,
-                          child: Opacity(
-                            opacity: isLocked ? 0.4 : 1.0,
-                            child: CircleAvatar(
-                              radius: 35,
-                              backgroundColor: Colors.transparent,
-                              backgroundImage: AssetImage(assetPath),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (isLocked)
-                        const Positioned.fill(
-                          child: Icon(Icons.lock, color: Colors.black54, size: 24),
-                        ),
-                    ],
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: isSelected
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: tealBlue, width: 3),
+                          )
+                        : null,
+                    child: CircleAvatar(
+                      radius: 35,
+                      backgroundColor: Colors.grey.shade300,
+                      backgroundImage: AssetImage(assetPath),
+                    ),
                   ),
                 );
               }).toList(),

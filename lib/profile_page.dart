@@ -1,12 +1,10 @@
 // In: lib/profile_page.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'edit_profile_page.dart';
 import 'custom_page_route.dart';
-import 'gamification_service.dart'; // <-- 1. IMPORT THIS
 
 class ProfilePage extends StatefulWidget {
   final Stream<DocumentSnapshot>? userStream;
@@ -27,74 +25,6 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   static const Color appPrimaryColor = Color(0xFF5A9E9E);
   static const Color appBackgroundColor = Color(0xFFD2E9E9);
-  bool _isRecalculating = false; // To show loading state for the button
-
-  // --- 2. ADD THIS FUNCTION: Recalculate Points ---
-  Future<void> _recalculatePoints() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    setState(() => _isRecalculating = true);
-
-    try {
-      // A. Count Journals (25 pts each)
-      final journalSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('journal_entries')
-          .get();
-      final int journalPoints = journalSnap.docs.length * 25;
-
-      // B. Count DASS-21 (100 pts each)
-      final dassSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('dass21_results')
-          .get();
-      final int dassPoints = dassSnap.docs.length * 100;
-
-      // C. Count Moodboards (50 pts each)
-      final moodboardSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('moodboards')
-          .get();
-      final int moodboardPoints = moodboardSnap.docs.length * 50;
-
-      // D. "Early Access" Bonus (For lost quiz points)
-      const int bonusPoints = 200; 
-
-      final int newTotal = journalPoints + dassPoints + moodboardPoints + bonusPoints;
-
-      // E. Update Database
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'totalPoints': newTotal,
-      });
-
-      // F. Check if this new score unlocks badges
-      await GamificationService.checkBadges(user);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Success! Points synced to: $newTotal"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-
-    } catch (e) {
-      print("Error syncing points: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to sync points.")),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isRecalculating = false);
-    }
-  }
-  // --- END FUNCTION ---
 
   @override
   Widget build(BuildContext context) {
@@ -253,17 +183,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const Spacer(),
                 
-                // --- 3. ADD "Fix Points" BUTTON ---
-                if (_isRecalculating)
-                  const CircularProgressIndicator()
-                else
-                  TextButton(
-                    onPressed: _recalculatePoints,
-                    child: const Text("Sync Missing Points", style: TextStyle(color: Colors.grey)),
-                  ),
-                const SizedBox(height: 10),
-                // --- END ADD ---
-
                 OutlinedButton.icon(
                   icon: Icon(Icons.logout, color: Colors.red.shade700),
                   label: Text(
