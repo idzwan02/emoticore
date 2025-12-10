@@ -114,58 +114,58 @@ final Map<String, int> avatarUnlockThresholds = {
   'woman': 0,
   'boy': 0,
   'rabbit': 0,
-  // Tier 1 (50 Points)
-  'profile': 50,
-  'profile (2)': 50,
-  'man (2)': 50,
-  'man (12)': 50,
-  'man (3)': 50,
-  'man (5)': 50,
-  'human': 50,
-  'woman (4)': 50,
-  'dog (1)': 50,
-  'cat': 50,
-  // Tier 2 (150 Points)
-  'woman (1)': 150,
-  'woman (3)': 150,
-  'man (8)': 150,
-  'man (9)': 150,
-  'man (11)': 150,
-  'dog': 150,
-  'chicken': 150,
-  'koala': 150,
-  'lion': 150,
-  // Tier 3 (300 Points)
-  'user (1)': 300,
-  'astronaut (2)': 300,
-  'man (4)': 300,
-  'woman (6)': 300,
-  'puffer-fish': 300,
-  'bear': 300,
-  'meerkat': 300,
-  'panda': 300,
-  'polar-bear': 300,
-  'sloth': 300,
-  // Tier 4 (500 Points)
-  'man (1)': 500,
-  'man (6)': 500,
-  'woman (5)': 500,
-  'dog (2)': 500,
-  'cat (2)': 500,
-  'eagle': 500,
-  'gorilla': 500,
-  'hen': 500,
-  'hippopotamus': 500,
-  // Tier 5 (1000 Points)
-  'astronaut': 1000,
-  'man (10)': 1000,
-  'dragon': 1000,
-  'gamer': 1000,
-  'robot': 1000,
-  'shark': 1000,
-  'owl': 1000,
-  'fox': 1000,
-  'cow': 1000,
+  // Tier 1 (300 Points)
+  'profile': 300,
+  'profile (2)': 300,
+  'man (2)': 300,
+  'man (12)': 300,
+  'man (3)': 300,
+  'man (5)': 300,
+  'human': 300,
+  'woman (4)': 300,
+  'dog (1)': 300,
+  'cat': 300,
+  // Tier 2 (600 Points)
+  'woman (1)': 600,
+  'woman (3)': 600,
+  'man (8)': 600,
+  'man (9)': 600,
+  'man (11)': 600,
+  'dog': 600,
+  'chicken': 600,
+  'koala': 600,
+  'lion': 600,
+  // Tier 3 (1000 Points)
+  'user (1)': 1000,
+  'astronaut (2)': 1000,
+  'man (4)': 1000,
+  'woman (6)': 1000,
+  'puffer-fish': 1000,
+  'bear': 1000,
+  'meerkat': 1000,
+  'panda': 1000,
+  'polar-bear': 1000,
+  'sloth': 1000,
+  // Tier 4 (2000 Points)
+  'man (1)': 2000,
+  'man (6)': 2000,
+  'woman (5)': 2000,
+  'dog (2)': 2000,
+  'cat (2)': 2000,
+  'eagle': 2000,
+  'gorilla': 2000,
+  'hen': 2000,
+  'hippopotamus': 2000,
+  // Tier 5 (5000 Points)
+  'astronaut': 5000,
+  'man (10)': 5000,
+  'dragon': 5000,
+  'gamer': 5000,
+  'robot': 5000,
+  'shark': 5000,
+  'owl': 5000,
+  'fox': 5000,
+  'cow': 5000,
 };
 
 // --- 4. CENTRALIZED ASSET MAP ---
@@ -228,3 +228,36 @@ final Map<String, String> masterAvatarAssets = {
   'woman (6)': 'assets/avatars/woman (6).png',
   'woman': 'assets/avatars/woman.png',
 };
+
+class UserLevel {
+  final int level;
+  final String title;
+  final int minPoints;
+  final int maxPoints;
+
+  const UserLevel({
+    required this.level,
+    required this.title,
+    required this.minPoints,
+    required this.maxPoints,
+  });
+}
+
+// Define the Levels
+final List<UserLevel> gameLevels = [
+  const UserLevel(level: 1, title: "Novice", minPoints: 0, maxPoints: 100),
+  const UserLevel(level: 2, title: "Beginner", minPoints: 101, maxPoints: 300),
+  const UserLevel(level: 3, title: "Seeker", minPoints: 301, maxPoints: 600),
+  const UserLevel(level: 4, title: "Explorer", minPoints: 601, maxPoints: 1000),
+  const UserLevel(level: 5, title: "Master", minPoints: 1001, maxPoints: 2000),
+  const UserLevel(level: 6, title: "Grandmaster", minPoints: 2001, maxPoints: 5000),
+  const UserLevel(level: 7, title: "Guru", minPoints: 5001, maxPoints: 100000), // Max level cap
+];
+
+// Helper to find current level based on points
+UserLevel getUserLevel(int points) {
+  return gameLevels.lastWhere(
+    (lvl) => points >= lvl.minPoints,
+    orElse: () => gameLevels[0],
+  );
+}

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'edit_profile_page.dart';
 import 'custom_page_route.dart';
+import 'gamification_data.dart'; // <-- IMPORT THIS
 
 class ProfilePage extends StatefulWidget {
   final Stream<DocumentSnapshot>? userStream;
@@ -98,6 +99,7 @@ class _ProfilePageState extends State<ProfilePage> {
           final String dob = data['dateOfBirth'] ?? 'Not set';
           final String currentAvatarId = data['selectedAvatarId'] ?? 'default';
           final String mantra = data['mantra'] ?? 'One day at a time.';
+          final int totalPoints = data['totalPoints'] ?? 0;
 
           String joinedDate = 'Unknown';
           Timestamp? joinedTimestamp = data['joinedAt'];
@@ -147,6 +149,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                 ),
+                
+                // --- NEW LEVEL PROGRESS SECTION ---
+                const SizedBox(height: 20),
+                _buildLevelProgressCard(totalPoints),
+                // --- END NEW SECTION ---
+
                 const SizedBox(height: 16),
                 Column(
                   children: [
@@ -207,6 +215,120 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  // --- NEW HELPER WIDGET ---
+  Widget _buildLevelProgressCard(int points) {
+    // 1. Get current level data
+    final UserLevel currentLevel = getUserLevel(points);
+    final UserLevel? nextLevel = (currentLevel.level < 7) 
+        ? gameLevels.firstWhere((lvl) => lvl.level == currentLevel.level + 1)
+        : null; // Max level
+
+    // 2. Calculate Progress (0.0 to 1.0)
+    double progress = 0.0;
+    int pointsInCurrentLevel = points - currentLevel.minPoints;
+    int pointSpan = currentLevel.maxPoints - currentLevel.minPoints;
+    
+    if (pointSpan > 0) {
+      progress = pointsInCurrentLevel / pointSpan;
+      // Clamp between 0 and 1
+      if (progress > 1.0) progress = 1.0;
+      if (progress < 0.0) progress = 0.0;
+    } else {
+      progress = 1.0; // Max level
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "LEVEL ${currentLevel.level}",
+                    style: TextStyle(
+                      fontSize: 12, 
+                      fontWeight: FontWeight.bold, 
+                      color: Colors.grey.shade600,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  Text(
+                    currentLevel.title,
+                    style: const TextStyle(
+                      fontSize: 18, 
+                      fontWeight: FontWeight.bold, 
+                      color: appPrimaryColor,
+                    ),
+                  ),
+                ],
+              ),
+              // Points Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star, size: 16, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Text(
+                      "$points pts",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        color: Colors.amber.shade900
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 12,
+              backgroundColor: Colors.grey.shade200,
+              color: appPrimaryColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Helper Text
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              nextLevel != null 
+                  ? "${currentLevel.maxPoints - points + 1} pts to Level ${nextLevel.level}"
+                  : "Max Level Reached!",
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          ),
+        ],
       ),
     );
   }

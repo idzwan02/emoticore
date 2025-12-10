@@ -98,6 +98,7 @@ class _RegisterPageState extends State<RegisterPage> {
           'totalPoints': 0, // Start with 0 points
           'unlockedBadges': [],
           'selectedBadges': [],
+          'unlockedAvatars': [],
           'mantra': _mantraController.text.trim().isEmpty 
               ? "One day at a time." 
               : _mantraController.text.trim(),

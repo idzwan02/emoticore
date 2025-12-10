@@ -14,6 +14,7 @@ import 'profile_page.dart';
 import 'streak_service.dart'; 
 import 'gamification_service.dart';
 import 'gamification_data.dart'; 
+import 'notifications_page.dart';
 
 class EmoticoreMainPage extends StatefulWidget {
   final User user;
@@ -191,8 +192,28 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
       } catch (e) {
         print("Error creating user document: $e");
       }
+      }else {
+      // --- HEALING LOGIC FOR EXISTING USERS ---
+      // If the user exists but is missing new fields, add them.
+      Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+      
+      bool needsUpdate = false;
+      Map<String, dynamic> updateData = {};
+
+      if (!data.containsKey('unlockedAvatars')) {
+        updateData['unlockedAvatars'] = [];
+        needsUpdate = true;
+      }
+      if (!data.containsKey('selectedBadges')) {
+        updateData['selectedBadges'] = [];
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        await userDocRef.update(updateData);
+      }
+      }
     }
-  }
 
   Future<void> _loadMoodData() async {
     String finalMoodId = 'neutral';
@@ -429,6 +450,48 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
             },
           ),
           const Spacer(),
+
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(widget.user.uid)
+                .collection('notifications')
+                .where('isRead', isEqualTo: false)
+                .snapshots(),
+            builder: (context, snapshot) {
+              bool hasUnread = false;
+              if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                hasUnread = true;
+              }
+
+              return Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        FadeRoute(page: const NotificationsPage()),
+                      );
+                    },
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
