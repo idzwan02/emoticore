@@ -95,6 +95,7 @@ Before running the project, you **must** configure Firebase and populate the dat
     ```
 
 ## 📂 Project Structure
+```
 lib/ 
 ├── assets/ # Local images and Lottie animations 
 ├── lib/ 
@@ -114,3 +115,4 @@ lib/
 │ ├── profile_page.dart # User Profile & Gamification Stats 
 │ └── ... (Auth pages, etc.) 
 └── pubspec.yaml
+```
