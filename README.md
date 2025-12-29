@@ -1,6 +1,6 @@
 # Emoticore 💖
 
-Emoticore is a mobile mental health (mHealth) application built with Flutter and Firebase. This project is developed as part of a university course (`CSP`, Semester 6) to explore mobile app development for mental well-being. The app provides users with tools to track their mood, monitor mental health scores via the DASS-21 assessment, and customize their profile.
+Emoticore is a gamified mobile mental health (mHealth) application built with Flutter and Firebase. This project is developed as part of a university course (`CSP`, Semester 6) to explore mobile app development for mental well-being. The app combines traditional tracking tools with gamification elements to encourage consistent engagement.
 
 ## 📸 Screenshots
 
@@ -12,59 +12,67 @@ Emoticore is a mobile mental health (mHealth) application built with Flutter and
 
 ## ✨ Features
 
-  * **Firebase Authentication:** Full email & password sign-up, login, and "Forgot Password" functionality.
-  * **Animated Splash Screen:** A beautiful, multi-stage launch sequence using `flutter_native_splash` (for the instant-on native screen) and a Lottie (`open.json`) animation.
-  * **Dynamic Dashboard (Home Tab):**
-      * Welcomes the user with their name and selected avatar, fetched live from Firestore.
-      * **Live DASS-21 Chart:** Displays the user's latest DASS-21 (Stress, Anxiety, Depression) scores in a bar chart (`fl_chart`) that updates automatically when a new test is completed.
-      * **Daily Mood Tracker:** A "once-a-day" pop-up asks the user for their mood (using `shared_preferences` to track the date). The selected emoji is then displayed on the dashboard.
-      * Section placeholders for "Your Badges," "Stats Cards," and "Articles."
-  * **Activities Tab:**
-      * A centered grid layout (`Wrap`) of all available app activities (Journaling, Moodboard, Quizzes, DASS-21, Daily Task).
-  * **DASS-21 Assessment Page:**
-      * A multi-page (`PageView`) 21-question assessment.
-      * Custom-styled, animated answer selection.
-      * Automatically calculates the Depression, Anxiety, and Stress scores based on the official template.
-      * Saves the final results and raw answers to a user-specific subcollection in Firestore.
-  * **Profile Tab:**
-      * Displays the user's selected avatar, name, email, date of birth, and join date (fetched from Firestore).
-      * **Avatar Selection System:** Allows the user to tap their avatar to open a dialog and select from a predefined list of local assets (stored in `assets/avatars/`). The choice is saved to Firestore and updates the dashboard avatar.
-      * Secure logout functionality.
-  * **Custom Animations:**
-      * `Lottie` is used for all loading indicators.
-      * `AnimatedSwitcher` provides a smooth fade transition between the Home, Activities, and Profile tabs.
-      * `FadeRoute` (`PageRouteBuilder`) provides a custom fade animation for all page-to-page navigation.
+### 🎮 Gamification System (New!)
+* **Points & Leveling:** Users earn Experience Points (XP) for completing tasks, checking in, and taking quizzes. Users progress through 7 distinct levels (Novice to Guru) based on their total points.
+* **Daily Streaks:** Tracks consecutive days of app usage to encourage habit building.
+* **Achievement Badges:** Automatically awards badges for milestones (e.g., "Rising Star" for 100 pts, "Committed" for a 3-day streak).
+* **Unlockable Avatars:** Users can unlock premium avatars (e.g., Astronaut, Robot, Animals) by earning points or reaching specific milestones.
+
+### 🧠 Core Functionality
+* **Firebase Authentication:** Full email & password sign-up, login, and "Forgot Password" functionality.
+* **Dynamic Dashboard:**
+    * Welcomes the user with their live data.
+    * **Live DASS-21 Chart:** Displays Stress, Anxiety, and Depression scores in a bar chart (`fl_chart`).
+    * **Daily Mood Tracker:** A "once-a-day" pop-up to track mood using emojis.
+* **Activities Hub:**
+    * **Pop Quiz:** A randomized 5-question mental health quiz fetched from the `quiz_bank`. Users receive instant feedback and earn points for correct answers (plus bonuses for perfect scores).
+    * **Enhanced Journaling:** A masonry grid view of journal entries. Supports rich entries with **images** and text.
+    * **Moodboards:** Users can create visual moodboards with titles, descriptions, and image collages displayed in a staggered grid.
+    * **DASS-21 Assessment:** A standard 21-question assessment to calculate mental health scores.
+* **Notification Center:**
+    * In-app notifications alert users when they unlock badges, earn new avatars, or receive system messages.
+* **Profile Tab:**
+    * Displays User Level, Progress Bar to the next level, and Total Points.
+    * **Avatar Selection System:** View and equip unlocked avatars.
+    * Personalized "Mantra" display.
+
+### 🎨 UI/UX & Animations
+* **Animated Splash Screen:** Multi-stage launch sequence using `flutter_native_splash` and Lottie animations.
+* **Staggered Grids:** Beautiful masonry layouts for Journal and Moodboard feeds using `flutter_staggered_grid_view`.
+* **Custom Animations:** Smooth `FadeRoute` page transitions and Lottie animations for loading states, success screens, and trophies.
 
 ## 🚀 Tech Stack
 
-  * **Frontend:** Flutter & Dart
-  * **Backend:** Firebase
-      * **Authentication:** For user sign-in and registration.
-      * **Cloud Firestore:** NoSQL database for storing user data, DASS-21 results, mood, and avatar preferences.
-  * **State Management:** `StatefulWidget` (`setState`)
-  * **Key Packages:**
-      * `firebase_core`
-      * `firebase_auth`
-      * `cloud_firestore`
-      * `lottie` (for all loading and splash animations)
-      * `fl_chart` (for DASS-21 bar chart)
-      * `shared_preferences` (for daily mood check timestamp)
-      * `intl` (for date formatting)
-      * `flutter_native_splash` (for the native splash screen)
+* **Frontend:** Flutter & Dart
+* **Backend:** Firebase
+    * **Authentication:** User management.
+    * **Cloud Firestore:** NoSQL database for users, journal entries, moodboards, quizzes, and notifications.
+    * **Firebase Storage:** (Optional) For storing user-uploaded images.
+* **Key Packages:**
+    * `firebase_core`, `firebase_auth`, `cloud_firestore`
+    * `lottie` (Animations)
+    * `fl_chart` (Data visualization)
+    * `flutter_staggered_grid_view` (Masonry layouts)
+    * `cached_network_image` (Image caching)
+    * `shared_preferences` (Local data persistence)
+    * `intl` (Date formatting)
+    * `flutter_native_splash` (Native splash screen)
 
 ## Firebase Setup 🔥
 
-Before running the project, you **must** configure Firebase:
+Before running the project, you **must** configure Firebase and populate the database:
 
-1.  **Create Project:** Go to the [Firebase Console](https://console.firebase.google.com/) and create a new project.
-2.  **Add Flutter:** Follow the `flutterfire configure` CLI instructions, or add Android and iOS apps manually.
-3.  **Download Config Files:**
-      * **Android:** Download the `google-services.json` file and place it in the `android/app/` directory.
-      * **iOS:** Download the `GoogleService-Info.plist` file and open the `ios/` folder in Xcode to add it to the `Runner` project.
-4.  **Enable Services:** In the Firebase Console, go to the **Build** section:
-      * **Authentication:** Enable the **Email/Password** sign-in method.
-      * **Cloud Firestore:** Create a database. Start in **Test Mode** (or configure security rules to allow reads/writes for authenticated users).
-      * **Storage (Optional):** If you plan to store other images, enable Firebase Storage.
+1.  **Create Project:** Go to the [Firebase Console](https://console.firebase.google.com/).
+2.  **Configure App:** Use `flutterfire configure` or manually add `google-services.json` (Android) and `GoogleService-Info.plist` (iOS).
+3.  **Enable Services:**
+    * **Authentication:** Email/Password.
+    * **Firestore Database:** Create the database.
+4.  **Populate Quiz Bank (Important):**
+    * Create a collection named `quiz_bank`.
+    * Add documents for each question with fields:
+        * `question` (string)
+        * `answers` (array of strings)
+        * `correctIndex` (number, 0-based index)
 
 ## 🚦 Getting Started
 
@@ -73,58 +81,36 @@ Before running the project, you **must** configure Firebase:
     git clone [Your Repository URL]
     cd emoticore
     ```
-2.  **Ensure Asset Folders:**
-      * Make sure you have your Lottie files in `assets/animations/` (especially `loading.json` and `open.json`).
-      * Make sure you have your avatar images in `assets/avatars/` (e.g., `default_avatar.png`, `avatar1.png`, etc.).
-3.  **Configure `pubspec.yaml`:**
-      * Ensure your `pubspec.yaml` file correctly lists your assets:
-    <!-- end list -->
-    ```yaml
-    flutter:
-      assets:
-        - assets/
-        - assets/avatars/
-        - assets/animations/
-    ```
-4.  **Get Packages:**
+2.  **Install Dependencies:**
     ```bash
     flutter pub get
     ```
-5.  **Run the Native Splash Generator:**
-    *(This is required after adding `flutter_native_splash` to your `pubspec.yaml`)*.
+3.  **Generate Splash Screen:**
     ```bash
     flutter pub run flutter_native_splash:create
     ```
-6.  **Run the App:**
+4.  **Run the App:**
     ```bash
     flutter run
     ```
 
 ## 📂 Project Structure
-
-```
-lib/
-├── assets/
-│   ├── avatars/
-│   │   ├── default_avatar.png
-│   │   └── ... (other avatars)
-│   ├── animations/
-│   │   ├── loading.json
-│   │   └── open.json
-│   └── brain_icon.png
-│
-├── lib/
-│   ├── main.dart             # App entry point, initializes Firebase
-│   ├── splash_screen.dart    # Lottie animation splash screen
-│   ├── auth_gate.dart        # Checks auth state and directs user
-│   ├── login_page.dart       # Login screen
-│   ├── register_page.dart    # Registration screen
-│   ├── forgot_password_page.dart # Password reset screen
-│   ├── dashboard_page.dart   # Main page with BottomNavBar (Home, Activities, Profile)
-│   ├── activities_page.dart  # Grid view for activities
-│   ├── profile_page.dart     # User profile and avatar selection
-│   ├── dass21_page.dart      # DASS-21 assessment
-│   └── custom_page_route.dart  # Reusable fade animation for navigation
-│
-└── pubspec.yaml            # Project dependencies and asset declarations
-```
+lib/ 
+├── assets/ # Local images and Lottie animations 
+├── lib/ 
+│ ├── main.dart 
+│ ├── gamification_data.dart # Badges, Levels, and Avatar rules 
+│ ├── gamification_service.dart # Logic for points and unlocking 
+│ ├── notification_service.dart # In-app notification handling 
+│ ├── streak_service.dart # Daily streak logic 
+│ ├── dashboard_page.dart # Main Home Tab 
+│ ├── activities_page.dart # Activities Grid 
+│ ├── pop_quiz_page.dart # Quiz Game 
+│ ├── quiz_results_page.dart # Quiz Scoring Screen 
+│ ├── journaling_page.dart # Journal Feed 
+│ ├── moodboard_page.dart # Moodboard Feed 
+│ ├── moodboard_detail_page.dart# Moodboard View 
+│ ├── notifications_page.dart # Notification Center 
+│ ├── profile_page.dart # User Profile & Gamification Stats 
+│ └── ... (Auth pages, etc.) 
+└── pubspec.yaml
