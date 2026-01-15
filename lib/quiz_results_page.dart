@@ -1,5 +1,6 @@
 // In: lib/quiz_results_page.dart
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lottie/lottie.dart';
 import 'pop_quiz_page.dart'; 
@@ -60,6 +61,18 @@ class _QuizResultsPageState extends State<QuizResultsPage> {
     }
 
     try {
+      // --- NEW: Save quiz result to its own collection for tracking ---
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('quiz_results')
+          .add({
+        'correctAnswers': widget.correctAnswers,
+        'totalQuestions': widget.totalQuestions,
+        'pointsEarned': _totalPointsEarned,
+        'timestamp': FieldValue.serverTimestamp(), // Use server timestamp for consistency
+      });
+
       // --- 2. UPDATE: Use GamificationService ---
       if (_totalPointsEarned > 0) {
         // This awards points AND checks for badges
@@ -69,9 +82,8 @@ class _QuizResultsPageState extends State<QuizResultsPage> {
       // Keep streak alive (even if they didn't get points, taking a quiz counts as activity)
       await StreakService.updateDailyStreak(user);
       // --- END UPDATE ---
-
     } catch (e) {
-      print("Failed to save points: $e");
+      print("Failed to save points or quiz result: $e");
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);

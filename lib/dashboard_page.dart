@@ -31,6 +31,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
   Stream<QuerySnapshot>? _dassStream;
   Stream<QuerySnapshot>? _journalStream;
   Stream<DocumentSnapshot>? _userStream;
+  Stream<QuerySnapshot>? _quizStream;
   String _currentMoodId = 'neutral';
 
   // --- Maps for Mood Data ---
@@ -250,6 +251,13 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
         .limit(1)
         .snapshots();
     _userStream = FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots();
+    _quizStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('quiz_results')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .snapshots();
   }
 
   Future<void> _signOut() async {
@@ -269,9 +277,9 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setStateDialog) {
+          builder: (builderContext, setStateDialog) {
             return AlertDialog(
               title: const Text("Showcase Badges (Max 3)"),
               content: SizedBox(
@@ -301,7 +309,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                                 if (tempSelected.length < 3) {
                                   tempSelected.add(id);
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(builderContext).showSnackBar(
                                     const SnackBar(content: Text("You can only select 3 badges to showcase.")),
                                   );
                                 }
@@ -335,7 +343,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text("Cancel"),
                 ),
                 TextButton(
@@ -344,7 +352,7 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
                     await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).update({
                       'selectedBadges': tempSelected,
                     });
-                    if (mounted) Navigator.pop(context);
+                    if (mounted) Navigator.pop(dialogContext);
                   },
                   child: const Text("Save"),
                 ),
@@ -828,7 +836,24 @@ class _EmoticoreMainPageState extends State<EmoticoreMainPage> {
           padding: const EdgeInsets.symmetric(vertical: 12.0),
           child: Column(
             children: [
-              _buildTaskTile("Complete a Pop Quiz", "+50 pts", false),
+              StreamBuilder<QuerySnapshot>(
+                stream: _quizStream,
+                builder: (context, snapshot) {
+                  bool isDone = false;
+                  if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                    final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                    final Timestamp? timestamp = data['timestamp'];
+                    if (timestamp != null) {
+                      final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                      final String entryDate = DateFormat('yyyy-MM-dd').format(timestamp.toDate());
+                      if (today == entryDate) {
+                        isDone = true;
+                      }
+                    }
+                  }
+                  return _buildTaskTile("Complete a Pop Quiz", "+50 pts", isDone);
+                }
+              ),
 
               StreamBuilder<QuerySnapshot>(
                 stream: _journalStream,
