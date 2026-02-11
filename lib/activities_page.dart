@@ -33,7 +33,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      String? lastCompletionDateStr = prefs.getString('lastDass21CompletionDate');
+      String? lastCompletionDateStr = prefs.getString('lastDass21CompletionDate_{uid}');
 
       // 2. LOOPHOLE FIX: If local data is missing, check Firestore
       if (lastCompletionDateStr == null) {

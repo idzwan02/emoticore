@@ -470,7 +470,7 @@ class _Dass21PageState extends State<Dass21Page> {
         // Save the completion time to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
-          'lastDass21CompletionDate',
+          'lastDass21CompletionDate_{currentUser.uid}',
           DateTime.now().toIso8601String(),
         );
 
